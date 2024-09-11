@@ -15,7 +15,9 @@ import os, sys
 import time
 import scipy.io
 import numpy as np
-import tensorflow as tf
+# import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 import argparse
 import datetime
 
@@ -39,6 +41,8 @@ from model import generate_target_continuous_go_nogo
 
 from model import construct_tf
 from model import loss_op
+
+import pdb
 
 # Parse input arguments
 parser = argparse.ArgumentParser(description='Training rate RNNs')
@@ -146,6 +150,7 @@ elif args.task.lower() == 'xor':
 elif args.task.lower() == 'mante':
     w_in = np.float32(np.random.randn(N, 4))
     w_out = np.float32(np.random.randn(1, N)/100)
+
 
 '''
 Initialize the continuous rate model
@@ -263,7 +268,8 @@ if args.mode.lower() == 'train':
                         eval_o, eval_l = sess.run([o, loss], feed_dict = \
                                 {input_node: eval_u, z: eval_target})
                         eval_losses[0, ii] = eval_l
-                        eval_os[ii, :] = eval_o
+                        # eval_os[ii, :] = eval_o # original
+                        eval_os[ii, :] = np.array(eval_o).flatten()
                         eval_labels[ii, ] = eval_label
                         if eval_label == 1:
                             if np.max(eval_o[resp_onset:]) > training_params['eval_amp_threh']:

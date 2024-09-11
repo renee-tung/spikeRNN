@@ -9,7 +9,9 @@
 
 import os, sys
 import numpy as np
-import tensorflow as tf
+# import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 import scipy.io
 
 '''
@@ -574,7 +576,7 @@ def eval_tf(model_dir, settings, u):
     T = settings['T']
     stim_on = settings['stim_on']
     stim_dur = settings['stim_dur']
-    delay = settings['delay']
+    # delay = settings['delay']
     DeltaT = settings['DeltaT']
 
     # Load the trained mat file
@@ -582,18 +584,20 @@ def eval_tf(model_dir, settings, u):
 
     # Get some additional params
     N = var['N'][0][0]
-    exc_ind = [np.bool(i) for i in var['exc']]
+    exc_ind = [bool(i) for i in var['exc']]
 
     # Get the delays
     taus_gaus = var['taus_gaus']
     taus = var['taus'][0] # tau [min, max]
     taus_sig = (1/(1+np.exp(-taus_gaus))*(taus[1] - taus[0])) + taus[0] 
 
-    # Synaptic currents and firing-rates
+    # Synaptic currents and firing-rates; + EPSP
     x = np.zeros((N, T)) # synaptic currents
     r = np.zeros((N, T)) # firing-rates
+    epsp = np.zeros(T) # EPSP
     x[:, 0] = np.random.randn(N, )/100
     r[:, 0] = 1/(1 + np.exp(-x[:, 0]))
+    epsp[0] = np.random.randn(1)/100
     # r[:, 0] = np.minimum(np.maximum(x[:, 0], 0), 1) #clipped relu
     # r[:, 0] = np.clip(np.minimum(np.maximum(x[:, 0], 0), 1), None, 10) #clipped relu
     # r[:, 0] = np.clip(np.log(np.exp(x[:, 0])+1), None, 10) # softplus
@@ -633,9 +637,14 @@ def eval_tf(model_dir, settings, u):
                 np.multiply((DeltaT/taus_sig), ((np.matmul(ww, np.expand_dims(r[:, t-1], 1)))\
                 + np.matmul(var['w_in'], np.expand_dims(u[:, t-1], 1)))) +\
                 np.random.randn(N, 1)/10
+        
+        next_epsp = np.multiply((1 - DeltaT/taus_sig)[exc_ind], np.expand_dims(x[exc_ind, t-1], 1)) + \
+                np.multiply((DeltaT/taus_sig)[exc_ind], (np.matmul(ww[exc_ind,exc_ind], np.expand_dims(r[exc_ind, t-1], 1)))) + \
+                np.random.randn(len(exc_ind), 1)/10
 
         x[:, t] = np.squeeze(next_x)
         r[:, t] = 1/(1 + np.exp(-x[:, t]))
+        epsp[t] = np.squeeze(np.nansum(next_epsp))
         # r[:, t] = np.minimum(np.maximum(x[:, t], 0), 1)
         # r[:, t] = np.clip(np.minimum(np.maximum(x[:, t], 0), 1), None, 10)
         # r[:, t] = np.clip(np.log(np.exp(x[:, t])+1), None, 10) # softplus
@@ -652,5 +661,5 @@ def eval_tf(model_dir, settings, u):
         # o[o_counter] = np.matmul(wout_exc, r[exc_ind, t]) + var['b_out'] # excitatory output
         # o[o_counter] = np.matmul(wout_inh, r[inh_ind, t]) + var['b_out'] # inhibitory output
         o_counter += 1
-    return x, r, o
+    return x, r, o, epsp
 
