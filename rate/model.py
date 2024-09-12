@@ -594,10 +594,10 @@ def eval_tf(model_dir, settings, u):
     # Synaptic currents and firing-rates; + EPSP
     x = np.zeros((N, T)) # synaptic currents
     r = np.zeros((N, T)) # firing-rates
-    epsp = np.zeros(T) # EPSP
+    epsp = np.zeros((N, T)) # EPSP
     x[:, 0] = np.random.randn(N, )/100
     r[:, 0] = 1/(1 + np.exp(-x[:, 0]))
-    epsp[0] = np.random.randn(1)/100
+    epsp[:, 0] = np.abs(np.random.randn(N, )/100)
     # r[:, 0] = np.minimum(np.maximum(x[:, 0], 0), 1) #clipped relu
     # r[:, 0] = np.clip(np.minimum(np.maximum(x[:, 0], 0), 1), None, 10) #clipped relu
     # r[:, 0] = np.clip(np.log(np.exp(x[:, 0])+1), None, 10) # softplus
@@ -638,13 +638,12 @@ def eval_tf(model_dir, settings, u):
                 + np.matmul(var['w_in'], np.expand_dims(u[:, t-1], 1)))) +\
                 np.random.randn(N, 1)/10
         
-        next_epsp = np.multiply((1 - DeltaT/taus_sig)[exc_ind], np.expand_dims(x[exc_ind, t-1], 1)) + \
-                np.multiply((DeltaT/taus_sig)[exc_ind], (np.matmul(ww[exc_ind,exc_ind], np.expand_dims(r[exc_ind, t-1], 1)))) + \
-                np.random.randn(len(exc_ind), 1)/10
+        next_epsp = np.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[:, t-1], 1)) + \
+                np.multiply((DeltaT/taus_sig), ((np.matmul(ww[:,exc_ind], np.expand_dims(r[exc_ind, t-1], 1))))) 
 
         x[:, t] = np.squeeze(next_x)
         r[:, t] = 1/(1 + np.exp(-x[:, t]))
-        epsp[t] = np.squeeze(np.nansum(next_epsp))
+        epsp[:, t] = np.squeeze(next_epsp)
         # r[:, t] = np.minimum(np.maximum(x[:, t], 0), 1)
         # r[:, t] = np.clip(np.minimum(np.maximum(x[:, t], 0), 1), None, 10)
         # r[:, t] = np.clip(np.log(np.exp(x[:, t])+1), None, 10) # softplus
