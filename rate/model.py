@@ -9,7 +9,9 @@
 
 import os, sys
 import numpy as np
-import tensorflow as tf
+# import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 import scipy.io
 
 '''
@@ -21,7 +23,7 @@ class FR_RNN_dale:
     Firing-rate RNN model for excitatory and inhibitory neurons
     Initialization of the firing-rate model with recurrent connections
     """
-    def __init__(self, N, P_inh, P_rec, w_in, som_N, w_dist, gain, apply_dale, w_out):
+    def __init__(self, N, P_inh, P_rec, w_in, w_noise, C, som_N, w_dist, gain, apply_dale, w_out):
         """
         Network initialization method
         N: number of units (neurons)
@@ -43,6 +45,8 @@ class FR_RNN_dale:
         self.P_inh = P_inh
         self.P_rec = P_rec
         self.w_in = w_in
+        self.w_noise = w_noise #added
+        self.C = C #added
         self.som_N = som_N
         self.w_dist = w_dist
         self.gain = gain
@@ -145,6 +149,8 @@ class FR_RNN_dale:
         self.som_mask = settings['som_m']
         self.W = settings['w']
         self.w_in = settings['w_in']
+        self.w_noise = settings['w_noise'] #added
+        self.C = settings['C'] #added
         self.b_out = settings['b_out']
         self.w_out = settings['w_out']
 
@@ -481,6 +487,7 @@ def construct_tf(fr_rnn, settings, training_params):
     som_m = tf.get_variable('som_m', initializer = fr_rnn.som_mask, dtype=tf.float32,
             trainable=False)
     w_in = tf.get_variable('w_in', initializer = fr_rnn.w_in, dtype=tf.float32, trainable=False)
+    w_noise = tf.get_variable('w_noise', initializer = fr_rnn.w_noise, dtype=tf.float32, trainable=True) #added
     w_out = tf.get_variable('w_out', initializer = fr_rnn.w_out, dtype=tf.float32, 
             trainable=True)
 
@@ -503,9 +510,11 @@ def construct_tf(fr_rnn, settings, training_params):
         elif len(taus) == 1: # one scalar synaptic decay time-constant
             taus_sig = taus[0]
 
-        next_x = tf.multiply((1 - DeltaT/taus_sig), x[t-1]) + \
-                tf.multiply((DeltaT/taus_sig), ((tf.matmul(ww, r[t-1]))\
-                + tf.matmul(w_in, tf.expand_dims(stim[:, t-1], 1)))) +\
+        # note to self: can adjust the noise line with different kind of noise
+        next_x = tf.multiply((1 - DeltaT/taus_sig), x[t-1]) +\
+                tf.multiply((DeltaT/taus_sig), ((tf.matmul(ww, r[t-1])) +\
+                tf.matmul(w_noise, tf.random_normal([fr_rnn.N, fr_rnn.C], type=tf.float32)) +\
+                tf.matmul(w_in, tf.expand_dims(stim[:, t-1], 1)))) +\
                 tf.random_normal([fr_rnn.N, 1], dtype=tf.float32)/10
         x.append(next_x)
 
@@ -519,7 +528,7 @@ def construct_tf(fr_rnn, settings, training_params):
         next_o = tf.matmul(w_out, r[t]) + b_out
         o.append(next_o)
 
-    return stim, z, x, r, o, w, w_in, m, som_m, w_out, b_out, taus_gaus
+    return stim, z, x, r, o, w, w_in, w_noise, m, som_m, w_out, b_out, taus_gaus
 
 '''
 DEFINE LOSS AND OPTIMIZER
@@ -583,6 +592,7 @@ def eval_tf(model_dir, settings, u):
     # Get some additional params
     N = var['N'][0][0]
     exc_ind = [np.bool(i) for i in var['exc']]
+    C = var['C'][0][0] #added
 
     # Get the delays
     taus_gaus = var['taus_gaus']
@@ -629,9 +639,15 @@ def eval_tf(model_dir, settings, u):
                 # np.matmul(var['w_in'], u[:, t-1])) + \
                 # np.random.randn(N, )/10
 
-        next_x = np.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[:, t-1], 1)) + \
-                np.multiply((DeltaT/taus_sig), ((np.matmul(ww, np.expand_dims(r[:, t-1], 1)))\
-                + np.matmul(var['w_in'], np.expand_dims(u[:, t-1], 1)))) +\
+        # next_x = np.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[:, t-1], 1)) + \
+        #         np.multiply((DeltaT/taus_sig), ((np.matmul(ww, np.expand_dims(r[:, t-1], 1)))\
+        #         + np.matmul(var['w_in'], np.expand_dims(u[:, t-1], 1)))) +\
+        #         np.random.randn(N, 1)/10
+        
+        next_x = tf.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[:,t-1],1)) +\
+                tf.multiply((DeltaT/taus_sig), ((tf.matmul(ww, np.expand_dims(r[:,t-1],1)) +\
+                tf.matmul(var['w_noise'], tf.random_normal([N, C], type=tf.float32)) +\
+                tf.matmul(var['w_in'], tf.expand_dims(u[:, t-1], 1))))) +\
                 np.random.randn(N, 1)/10
 
         x[:, t] = np.squeeze(next_x)

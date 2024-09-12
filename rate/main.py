@@ -15,7 +15,9 @@ import os, sys
 import time
 import scipy.io
 import numpy as np
-import tensorflow as tf
+# import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 import argparse
 import datetime
 
@@ -55,6 +57,8 @@ parser.add_argument("--output_dir", required=True,
         type=str, help="Model output path")
 parser.add_argument("--N", required=True,
         type=int, help="Number of neurons")
+parser.add_argument("--C", required=False, #added
+        type=int, help="Number of noise channels")
 parser.add_argument("--gain", required=False,
         type=float, default = 1.5, help="Gain for the connectivity weight initialization")
 parser.add_argument("--P_inh", required=False,
@@ -94,6 +98,9 @@ if os.path.exists(out_dir) == False:
 # Number of units/neurons
 N = args.N
 som_N = args.som_N; # number of SST neurons 
+
+# Number of noise channels
+C = args.C #added
 
 # Define task-specific parameters
 # NOTE: Each time step is 5 ms
@@ -148,6 +155,11 @@ elif args.task.lower() == 'mante':
     w_out = np.float32(np.random.randn(1, N)/100)
 
 '''
+Initialize noise matrix
+'''
+w_noise = np.float32(np.random.randn(N, C)) #added
+
+'''
 Initialize the continuous rate model
 '''
 P_inh = args.P_inh # inhibitory neuron proportion
@@ -155,7 +167,7 @@ P_rec = args.P_rec # initial connectivity probability (i.e. sparsity degree)
 print('P_rec set to ' + str(P_rec))
 
 w_dist = 'gaus' # recurrent weight distribution (Gaussian or Gamma)
-net = FR_RNN_dale(N, P_inh, P_rec, w_in, som_N, w_dist, args.gain, args.apply_dale, w_out)
+net = FR_RNN_dale(N, P_inh, P_rec, w_in, w_noise, C, som_N, w_dist, args.gain, args.apply_dale, w_out)
 print('Intialized the network...')
 
 
@@ -178,7 +190,7 @@ training_params = {
 Construct the TF graph for training
 '''
 if args.mode.lower() == 'train':
-    input_node, z, x, r, o, w, w_in, m, som_m, w_out, b_out, taus\
+    input_node, z, x, r, o, w, w_in, w_noise, m, som_m, w_out, b_out, taus\
             = construct_tf(net, settings, training_params)
     print('Constructed the TF graph...')
 
@@ -202,22 +214,22 @@ if args.mode.lower() == 'train':
             # Go-NoGo task
             u, label = generate_input_stim_go_nogo(settings)
             target = generate_target_continuous_go_nogo(settings, label)
-            x0, r0, w0, w_in0, taus_gaus0 = \
-                    sess.run([x, r, w, w_in, taus], feed_dict={input_node: u, z: target})
+            x0, r0, w0, w_in0, w_noise0, taus_gaus0 = \
+                    sess.run([x, r, w, w_in, w_noise, taus], feed_dict={input_node: u, z: target}) #added
 
         elif args.task.lower() == 'xor':
             # XOR task
             u, label = generate_input_stim_xor(settings)
             target = generate_target_continuous_xor(settings, label)
-            x0, r0, w0, w_in0, taus_gaus0 = \
-                    sess.run([x, r, w, w_in, taus], feed_dict={input_node: u, z: target})
+            x0, r0, w0, w_in0, w_noise0, taus_gaus0 = \
+                    sess.run([x, r, w, w_in, w_noise, taus], feed_dict={input_node: u, z: target})
 
         elif args.task.lower() == 'mante':
             # Sensory integration task
             u, label = generate_input_stim_mante(settings)
             target = generate_target_continuous_mante(settings, label)
-            x0, r0, w0, w_in0, taus_gaus0 = \
-                    sess.run([x, r, w, w_in, taus], feed_dict={input_node: u, z: target})
+            x0, r0, w0, w_in0, w_noise0, taus_gaus0 = \
+                    sess.run([x, r, w, w_in, w_noise, taus], feed_dict={input_node: u, z: target})
 
         # For storing all the loss vals
         losses = np.zeros((args.n_trials,))
@@ -239,8 +251,8 @@ if args.mode.lower() == 'train':
             print("Trial " + str(tr) + ': ' + str(label))
 
             # Train using backprop
-            _, t_loss, t_w, t_o, t_w_out, t_x, t_r, t_m, t_som_m, t_w_in, t_b_out, t_taus_gaus = \
-                    sess.run([training_op, loss, w, o, w_out, x, r, m, som_m, w_in, b_out, taus],
+            _, t_loss, t_w, t_o, t_w_out, t_x, t_r, t_m, t_som_m, t_w_in, t_w_noise, t_b_out, t_taus_gaus = \
+                    sess.run([training_op, loss, w, o, w_out, x, r, m, som_m, w_in, w_noise, b_out, taus], #added
                     feed_dict={input_node: u, z: target})
 
             print('Loss: ', t_loss)
@@ -352,6 +364,7 @@ if args.mode.lower() == 'train':
         var['w0'] = w0
         var['taus_gaus0'] = taus_gaus0
         var['w_in0'] = w_in0
+        var['w_noise0'] = w_noise0 #added
         var['u'] = u
         var['o'] = t_o
         var['w'] = t_w
@@ -365,6 +378,7 @@ if args.mode.lower() == 'train':
         var['exc'] = net.exc
         var['inh'] = net.inh
         var['w_in'] = t_w_in
+        var['w_noise'] = t_w_noise #added
         var['b_out'] = t_b_out
         var['som_N'] = som_N
         var['losses'] = losses
@@ -378,10 +392,10 @@ if args.mode.lower() == 'train':
         var['activation'] = training_params['activation']
         fname_time = datetime.datetime.now().strftime("%Y_%m_%d_%H%M%S")
         if len(settings['taus']) > 1:
-            fname = 'Task_{}_N_{}_Taus_{}_{}_Act_{}_{}.mat'.format(args.task.lower(), N, settings['taus'][0], 
+            fname = 'Task_{}_N_{}_Taus_{}_{}_Act_{}_{}_noise.mat'.format(args.task.lower(), N, settings['taus'][0], #added
                     settings['taus'][1], training_params['activation'], fname_time)
         elif len(settings['taus']) == 1:
-            fname = 'Task_{}_N_{}_Tau_{}_Act_{}_{}.mat'.format(args.task.lower(), N, settings['taus'][0], 
+            fname = 'Task_{}_N_{}_Tau_{}_Act_{}_{}_noise.mat'.format(args.task.lower(), N, settings['taus'][0], #added
                     training_params['activation'], fname_time)
         scipy.io.savemat(os.path.join(out_dir, fname), var)
 
