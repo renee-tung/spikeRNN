@@ -14,6 +14,8 @@ import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
 import scipy.io
 
+import pdb
+
 '''
 CONTINUOUS FIRING-RATE RNN CLASS
 '''
@@ -473,6 +475,9 @@ def construct_tf(fr_rnn, settings, training_params):
     r = [] # firing-rates
     x.append(tf.random_normal([fr_rnn.N, 1], dtype=tf.float32)/100)
 
+    # Noise signal. NOTE TO SELF: can adjust type of noise here
+    psi = tf.random_normal([fr_rnn.C, T], dtype=tf.float32)
+
     # Transfer function options
     if training_params['activation'] == 'sigmoid':
         r.append(tf.sigmoid(x[0]))
@@ -510,10 +515,10 @@ def construct_tf(fr_rnn, settings, training_params):
         elif len(taus) == 1: # one scalar synaptic decay time-constant
             taus_sig = taus[0]
 
-        # note to self: can adjust the noise line with different kind of noise
+        # note to self: adjusted code here
         next_x = tf.multiply((1 - DeltaT/taus_sig), x[t-1]) +\
                 tf.multiply((DeltaT/taus_sig), ((tf.matmul(ww, r[t-1])) +\
-                tf.matmul(w_noise, tf.random_normal([fr_rnn.N, fr_rnn.C], type=tf.float32)) +\
+                tf.matmul(w_noise, tf.expand_dims(psi[:,t-1], 1)) +\
                 tf.matmul(w_in, tf.expand_dims(stim[:, t-1], 1)))) +\
                 tf.random_normal([fr_rnn.N, 1], dtype=tf.float32)/10
         x.append(next_x)
@@ -609,6 +614,8 @@ def eval_tf(model_dir, settings, u):
     # r[:, 0] = np.clip(np.log(np.exp(x[:, 0])+1), None, 10) # softplus
     # r[:, 0] = np.minimum(np.maximum(x[:, 0], 0), 6)/6 #clipped relu6
 
+    # Noise signal. NOTE TO SELF: can adjust type of noise here
+    psi = np.random.randn((C, T))
 
     # Output
     o = np.zeros((T, ))
@@ -646,7 +653,7 @@ def eval_tf(model_dir, settings, u):
         
         next_x = tf.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[:,t-1],1)) +\
                 tf.multiply((DeltaT/taus_sig), ((tf.matmul(ww, np.expand_dims(r[:,t-1],1)) +\
-                tf.matmul(var['w_noise'], tf.random_normal([N, C], type=tf.float32)) +\
+                tf.matmul(var['w_noise'], tf.expand_dims(psi[:,t-1], 1)) +\
                 tf.matmul(var['w_in'], tf.expand_dims(u[:, t-1], 1))))) +\
                 np.random.randn(N, 1)/10
 
