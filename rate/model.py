@@ -199,7 +199,7 @@ def generate_input_stim_go_nogo(settings):
     stim_on = settings['stim_on']
     stim_dur = settings['stim_dur']
 
-    u = np.zeros((1, T)) #+ np.random.randn(1, T)
+    u = np.zeros((1, T)).astype(np.float32) #+ np.random.randn(1, T)
     u_lab = np.zeros((2, 1))
     if np.random.rand() <= 0.50:
         u[0, stim_on:stim_on+stim_dur] = 1
@@ -588,7 +588,7 @@ def eval_tf(model_dir, settings, u):
     T = settings['T']
     stim_on = settings['stim_on']
     stim_dur = settings['stim_dur']
-    delay = settings['delay']
+    # delay = settings['delay']
     DeltaT = settings['DeltaT']
 
     # Load the trained mat file
@@ -596,7 +596,7 @@ def eval_tf(model_dir, settings, u):
 
     # Get some additional params
     N = var['N'][0][0]
-    exc_ind = [np.bool(i) for i in var['exc']]
+    exc_ind = [bool(i) for i in var['exc']]
     C = var['C'][0][0] #added
 
     # Get the delays
@@ -607,15 +607,17 @@ def eval_tf(model_dir, settings, u):
     # Synaptic currents and firing-rates
     x = np.zeros((N, T)) # synaptic currents
     r = np.zeros((N, T)) # firing-rates
+    epsp = np.zeros((N, T)) # EPSP
     x[:, 0] = np.random.randn(N, )/100
     r[:, 0] = 1/(1 + np.exp(-x[:, 0]))
+    epsp[:, 0] = np.abs(np.random.randn(N, )/100)
     # r[:, 0] = np.minimum(np.maximum(x[:, 0], 0), 1) #clipped relu
     # r[:, 0] = np.clip(np.minimum(np.maximum(x[:, 0], 0), 1), None, 10) #clipped relu
     # r[:, 0] = np.clip(np.log(np.exp(x[:, 0])+1), None, 10) # softplus
     # r[:, 0] = np.minimum(np.maximum(x[:, 0], 0), 6)/6 #clipped relu6
 
     # Noise signal. NOTE TO SELF: can adjust type of noise here
-    psi = np.random.randn((C, T))
+    psi = np.random.randn(C, T).astype(np.float32)
 
     # Output
     o = np.zeros((T, ))
@@ -651,11 +653,14 @@ def eval_tf(model_dir, settings, u):
         #         + np.matmul(var['w_in'], np.expand_dims(u[:, t-1], 1)))) +\
         #         np.random.randn(N, 1)/10
         
-        next_x = tf.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[:,t-1],1)) +\
-                tf.multiply((DeltaT/taus_sig), ((tf.matmul(ww, np.expand_dims(r[:,t-1],1)) +\
-                tf.matmul(var['w_noise'], tf.expand_dims(psi[:,t-1], 1)) +\
-                tf.matmul(var['w_in'], tf.expand_dims(u[:, t-1], 1))))) +\
+        next_x = np.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[:,t-1],1)) +\
+                np.multiply((DeltaT/taus_sig), ((np.matmul(ww, np.expand_dims(r[:,t-1],1)) +\
+                np.matmul(var['w_noise'], np.expand_dims(psi[:,t-1], 1)) +\
+                np.matmul(var['w_in'], np.expand_dims(u[:, t-1], 1))))) +\
                 np.random.randn(N, 1)/10
+        
+        next_epsp = np.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[:, t-1], 1)) + \
+                np.multiply((DeltaT/taus_sig), ((np.matmul(ww[:,exc_ind], np.expand_dims(r[exc_ind, t-1], 1)))))
 
         x[:, t] = np.squeeze(next_x)
         r[:, t] = 1/(1 + np.exp(-x[:, t]))
@@ -663,6 +668,7 @@ def eval_tf(model_dir, settings, u):
         # r[:, t] = np.clip(np.minimum(np.maximum(x[:, t], 0), 1), None, 10)
         # r[:, t] = np.clip(np.log(np.exp(x[:, t])+1), None, 10) # softplus
         # r[:, t] = np.minimum(np.maximum(x[:, t], 0), 6)/6
+        epsp[:, t] = np.squeeze(next_epsp)
 
 
         wout = var['w_out']
@@ -675,5 +681,5 @@ def eval_tf(model_dir, settings, u):
         # o[o_counter] = np.matmul(wout_exc, r[exc_ind, t]) + var['b_out'] # excitatory output
         # o[o_counter] = np.matmul(wout_inh, r[inh_ind, t]) + var['b_out'] # inhibitory output
         o_counter += 1
-    return x, r, o
+    return x, r, o, epsp
 
