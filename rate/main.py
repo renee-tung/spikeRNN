@@ -58,7 +58,11 @@ parser.add_argument("--output_dir", required=True,
 parser.add_argument("--N", required=True,
         type=int, help="Number of neurons")
 parser.add_argument("--C", required=False, #added
-        type=int, help="Number of noise channels")
+        type=int, default=1,
+        help="Number of noise channels")
+parser.add_argument("--noise_type", required=False, #added
+        type=str, default='gaussian',
+        help="Type of noise to add (gaussian, pulse, uniform, poisson)")
 parser.add_argument("--gain", required=False,
         type=float, default = 1.5, help="Gain for the connectivity weight initialization")
 parser.add_argument("--P_inh", required=False,
@@ -99,8 +103,9 @@ if os.path.exists(out_dir) == False:
 N = args.N
 som_N = args.som_N; # number of SST neurons 
 
-# Number of noise channels
+# Noise (num channels, type)
 C = args.C #added
+noise_type = args.noise_type #added
 
 # Define task-specific parameters
 # NOTE: Each time step is 5 ms
@@ -167,7 +172,7 @@ P_rec = args.P_rec # initial connectivity probability (i.e. sparsity degree)
 print('P_rec set to ' + str(P_rec))
 
 w_dist = 'gaus' # recurrent weight distribution (Gaussian or Gamma)
-net = FR_RNN_dale(N, P_inh, P_rec, w_in, w_noise, C, som_N, w_dist, args.gain, args.apply_dale, w_out)
+net = FR_RNN_dale(N, P_inh, P_rec, w_in, w_noise, C, noise_type, som_N, w_dist, args.gain, args.apply_dale, w_out)
 print('Intialized the network...')
 
 
@@ -377,6 +382,7 @@ if args.mode.lower() == 'train':
         var['som_m'] = t_som_m
         var['N'] = N
         var['C'] = C
+        var['noise_type'] = noise_type
         var['exc'] = net.exc
         var['inh'] = net.inh
         var['w_in'] = t_w_in
@@ -394,11 +400,11 @@ if args.mode.lower() == 'train':
         var['activation'] = training_params['activation']
         fname_time = datetime.datetime.now().strftime("%Y_%m_%d_%H%M%S")
         if len(settings['taus']) > 1:
-            fname = 'Task_{}_N_{}_Taus_{}_{}_Act_{}_{}_noise.mat'.format(args.task.lower(), N, settings['taus'][0], #added
-                    settings['taus'][1], training_params['activation'], fname_time)
+            fname = 'Task_{}_N_{}_Taus_{}_{}_Act_{}_{}_noise_{}.mat'.format(args.task.lower(), N, settings['taus'][0], #added
+                    settings['taus'][1], training_params['activation'], fname_time, noise_type)
         elif len(settings['taus']) == 1:
-            fname = 'Task_{}_N_{}_Tau_{}_Act_{}_{}_noise.mat'.format(args.task.lower(), N, settings['taus'][0], #added
-                    training_params['activation'], fname_time)
+            fname = 'Task_{}_N_{}_Tau_{}_Act_{}_{}_noise_{}.mat'.format(args.task.lower(), N, settings['taus'][0], #added
+                    training_params['activation'], fname_time, noise_type)
         scipy.io.savemat(os.path.join(out_dir, fname), var)
 
 

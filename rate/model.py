@@ -13,6 +13,7 @@ import numpy as np
 import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
 import scipy.io
+import scipy.signal
 
 import pdb
 
@@ -25,7 +26,7 @@ class FR_RNN_dale:
     Firing-rate RNN model for excitatory and inhibitory neurons
     Initialization of the firing-rate model with recurrent connections
     """
-    def __init__(self, N, P_inh, P_rec, w_in, w_noise, C, som_N, w_dist, gain, apply_dale, w_out):
+    def __init__(self, N, P_inh, P_rec, w_in, w_noise, C, noise_type, som_N, w_dist, gain, apply_dale, w_out):
         """
         Network initialization method
         N: number of units (neurons)
@@ -49,6 +50,7 @@ class FR_RNN_dale:
         self.w_in = w_in
         self.w_noise = w_noise #added
         self.C = C #added
+        self.noise_type = noise_type #added
         self.som_N = som_N
         self.w_dist = w_dist
         self.gain = gain
@@ -153,6 +155,7 @@ class FR_RNN_dale:
         self.w_in = settings['w_in']
         self.w_noise = settings['w_noise'] #added
         self.C = settings['C'] #added
+        self.noise_type = settings['noise_type'] #added
         self.b_out = settings['b_out']
         self.w_out = settings['w_out']
 
@@ -476,7 +479,24 @@ def construct_tf(fr_rnn, settings, training_params):
     x.append(tf.random_normal([fr_rnn.N, 1], dtype=tf.float32)/100)
 
     # Noise signal. NOTE TO SELF: can adjust type of noise here
-    psi = tf.random_normal([fr_rnn.C, T], dtype=tf.float32)
+    noise_type = fr_rnn.noise_type
+    if noise_type == 'gaussian':
+        psi = tf.random_normal([fr_rnn.C, T], dtype=tf.float32)
+    elif noise_type == 'pulse':
+        fs = T # sampling rate
+        signal_freq = 130 
+        t = np.linspace(0,1,fs)
+        pulse = scipy.signal.square(2*np.pi*130*t)
+        pulse[pulse==-1] = 0
+        pulse = np.tile(pulse,(fr_rnn.C,1))
+        psi = tf.constant(pulse, dtype=tf.float32)
+    elif noise_type == 'uniform':
+        psi = tf.random_uniform([fr_rnn.C, T], dtype=tf.float32)
+    elif noise_type == 'poisson':
+        psi = tf.random_poisson(1, [fr_rnn.C, T], dtype=tf.float32)
+    else:
+        print('Unimplemented: noise type')
+
 
     # Transfer function options
     if training_params['activation'] == 'sigmoid':
@@ -617,7 +637,23 @@ def eval_tf(model_dir, settings, u):
     # r[:, 0] = np.minimum(np.maximum(x[:, 0], 0), 6)/6 #clipped relu6
 
     # Noise signal. NOTE TO SELF: can adjust type of noise here
-    psi = np.random.randn(C, T).astype(np.float32)
+    # psi = np.random.randn(C, T).astype(np.float32)
+    noise_type = var['noise_type'][0]
+    if noise_type == 'gaussian':
+        psi = np.random.randn(C, T).astype(np.float32)
+    elif noise_type == 'pulse':
+        fs = T # sampling rate
+        signal_freq = 130 
+        t = np.linspace(0,1,fs)
+        pulse = scipy.signal.square(2*np.pi*130*t)
+        pulse[pulse==-1] = 0
+        psi = np.tile(pulse,(C,1)).astype(np.float32)
+    elif noise_type == 'uniform':
+        psi = np.random.uniform(size=(C, T)).astype(np.float32)
+    elif noise_type == 'poisson':
+        psi = np.random.poisson(size=(C, T)).astype(np.float32)
+    else:
+        print('Unimplemented: noise type')
 
     # Output
     o = np.zeros((T, ))
