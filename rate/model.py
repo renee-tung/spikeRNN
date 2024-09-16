@@ -486,7 +486,7 @@ def construct_tf(fr_rnn, settings, training_params):
         fs = T # sampling rate
         signal_freq = 130 
         t = np.linspace(0,1,fs)
-        pulse = scipy.signal.square(2*np.pi*130*t)
+        pulse = scipy.signal.square(2*np.pi*signal_freq*t)
         pulse[pulse==-1] = 0
         pulse = np.tile(pulse,(fr_rnn.C,1))
         psi = tf.constant(pulse, dtype=tf.float32)
