@@ -10,7 +10,7 @@ clear; clc;
 % First, load one trained rate RNN
 % Make sure lambda_grid_search.m was performed on the model.
 % Update model_path to point where the trained model is
-model_path = '../models/go-nogo/P_rec_0.2_Taus_4.0_20.0'; 
+model_path = '/Users/Renee/Downloads/spikeRNN/models/go-nogo/P_rec_0.2_Taus_4.0_20.0'; 
 mat_file = dir(fullfile(model_path, '*.mat'));
 model_name = mat_file(1).name;
 model_path = fullfile(model_path, model_name);
@@ -37,6 +37,7 @@ t = dt:dt:T;
 nogo_out = out;   % LIF network output
 nogo_rs = rs;     % firing rates
 nogo_spk = spk;   % spikes
+nogo_IPSCs = params.IPSCs;  % IPSCs
 
 
 % --------------------------------------------------------------
@@ -57,6 +58,7 @@ t = dt:dt:T;
 go_out = out;   % LIF network output
 go_rs = rs;     % firing rates
 go_spk = spk;   % spikes
+go_IPSCs = params.IPSCs;  % IPSCs
 
 % --------------------------------------------------------------
 % Plot the network output
@@ -105,4 +107,33 @@ end
 xlim([0, 1]);
 ylim([-5, 205]);
 
+
+% --------------------------------------------------------------
+% Plot the IPSCs
+% --------------------------------------------------------------
+
+figure; hold on; 
+plot(transpose(go_IPSCs))
+title('Go trial IPSCs')
+
+figure; hold on; 
+plot(transpose(nogo_IPSCs))
+title('No-Go trial IPSCs')
+
+
+% --------------------------------------------------------------
+% Plot spectrograms
+% --------------------------------------------------------------
+
+window = 100;
+noverlap = round(window/1.5);
+nfft = window * 2;
+fs = size(go_spk,2);
+[s, f, t] = spectrogram(go_IPSCs(1,:), window, noverlap, nfft, fs);
+
+figure; hold on;
+imagesc(10*log(abs(real(s))))
+% imagesc(real(s))
+colorbar
+set(gca, 'YDir','normal')
 
