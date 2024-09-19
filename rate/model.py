@@ -494,6 +494,14 @@ def construct_tf(fr_rnn, settings, training_params):
         psi = tf.random_uniform([fr_rnn.C, T], dtype=tf.float32)
     elif noise_type == 'poisson':
         psi = tf.random_poisson(1, [fr_rnn.C, T], dtype=tf.float32)
+    elif noise_type == 'sine':
+        tt = np.linspace(0, T, T)
+        sine = np.zeros((fr_rnn.C, T))
+        for nn in range(0, fr_rnn.C):
+            sine[nn,:] = np.sin(tt/5  - nn*(10/5))
+        psi = tf.constant(sine, dtype=tf.float32)
+    elif noise_type == 'none':
+        psi = tf.zeros([fr_rnn.C, T], dtype=tf.float32)
     else:
         print('Unimplemented: noise type')
 
