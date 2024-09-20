@@ -8,7 +8,9 @@
 # Description: Contains several general-purpose utility functions
 
 import os
-import tensorflow as tf
+# import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 import argparse
 
 def set_gpu(gpu, frac):
