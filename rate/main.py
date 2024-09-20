@@ -301,7 +301,7 @@ if args.mode.lower() == 'train':
                         eval_o, eval_l = sess.run([o, loss], feed_dict = \
                                 {input_node: eval_u, z: eval_target})
                         eval_losses[0, ii] = eval_l
-                        eval_os[ii, :] = eval_o
+                        eval_os[ii, :] = np.array(eval_o).flatten()
                         eval_labels.append(eval_label)
                         if eval_label == 'same':
                             if np.max(eval_o[200:]) > training_params['eval_amp_threh']:

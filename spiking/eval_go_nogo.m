@@ -10,7 +10,9 @@ clear; clc;
 % First, load one trained rate RNN
 % Make sure lambda_grid_search.m was performed on the model.
 % Update model_path to point where the trained model is
-model_path = '/Users/Renee/Downloads/spikeRNN/models/go-nogo/P_rec_0.2_Taus_4.0_20.0'; 
+% model_path = '/Users/Renee/Downloads/spikeRNN/models/go-nogo/P_rec_0.2_Taus_4.0_20.0'; 
+model_path = '/home/nuttidalab/Documents/spikeRNN/models/DMS_OSF';
+% model_path = '/home/nuttidalab/Documents/spikeRNN/models/xor';
 mat_file = dir(fullfile(model_path, '*.mat'));
 model_name = mat_file(1).name;
 model_path = fullfile(model_path, model_name);
@@ -137,3 +139,8 @@ imagesc(10*log(abs(real(s))))
 colorbar
 set(gca, 'YDir','normal')
 
+
+% --------------------------------------------------------------
+% Save IPSCs
+% --------------------------------------------------------------
+save('IPSCs.mat', 'go_IPSCs','nogo_IPSCs')
