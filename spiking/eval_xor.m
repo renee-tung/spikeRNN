@@ -13,29 +13,38 @@ current_path = pwd;
 % Make sure lambda_grid_search.m was performed on the model.
 
 % Update model_path to point where the trained model is
-% model_path = '/Users/Renee/Downloads/spikeRNN/models/go-nogo/P_rec_0.2_Taus_4.0_20.0'; 
-model_path = '/home/nuttidalab/Documents/spikeRNN/models/DMS_OSF';
-% model_path = '/home/nuttidalab/Documents/spikeRNN/models/xor';
+% model_path = '/Users/Renee/Downloads/spikeRNN/models/go-nogo/P_rec_0.2_Taus_4.0_20.0';
+
+% model_path = '/home/nuttidalab/Documents/spikeRNN/models/DMS_OSF';
+% mat_file = dir(fullfile(model_path, '*.mat'));
+% model_name = mat_file(1).name;
+
+model_path = '/home/nuttidalab/Documents/spikeRNN/models/xor/P_rec_0.2_Taus_4.0_20.0';
 mat_file = dir(fullfile(model_path, '*.mat'));
 model_name = mat_file(1).name;
 
 % make a folder for the model
 cd(model_path)
 if ~exist(model_name(1:(end-4)), 'dir')
-    mkdir(model_name)
+    mkdir(model_name(1:(end-4)))
 end
+model_dir_path = strcat(model_path,'/',model_name(1:(end-4)));
 
 cd(current_path)
 
-model_path = fullfile(model_path, model_name);
-load(model_path);
+file_path = fullfile(model_path, model_name);
+load(file_path);
 
-% get the model path again bc was written over
-model_path = '/home/nuttidalab/Documents/spikeRNN/models/DMS_OSF';
-% model_path = '/home/nuttidalab/Documents/spikeRNN/models/xor';
+% get model_path again bc was written over
+% model_path = '/home/nuttidalab/Documents/spikeRNN/models/DMS_OSF';
+% mat_file = dir(fullfile(model_path, '*.mat'));
+% model_name = mat_file(1).name;
+% model_path = fullfile(model_path, model_name);
+
+model_path = '/home/nuttidalab/Documents/spikeRNN/models/xor/P_rec_0.2_Taus_4.0_20.0';
 mat_file = dir(fullfile(model_path, '*.mat'));
 model_name = mat_file(1).name;
-model_path = fullfile(model_path, model_name);
+file_path = fullfile(model_path, model_name);
 
 use_initial_weights = false;
 scaling_factor = opt_scaling_factor;
@@ -84,26 +93,20 @@ u = zeros(2, T+1); % input stim
 u(1, stim_on:stim_on+stim_dur) = 1; % first stim is +1
 u(2, stim_on+stim_dur+delay:stim_on+2*stim_dur+delay) = -1; % second stim is -1
 
-n_trials = 15;
+% Run the LIF simulation
+stims = struct();
+stims.mode = 'none';
+[W, REC, spk, rs, all_fr, out, params] = LIF_network_fnc(model_path, scaling_factor,...
+    u, stims, down_sample, use_initial_weights);
+dt = params.dt;
+T = params.T;
+t = dt:dt:T;
 
-% Run the LIF simulation on n_trials trials
-diff_IPSCs = zeros([200,30000, n_trials]); % 200 neurons, 30k samples, n_trials
-for i=1:n_trials
+diff_out = out;   % LIF network output
+diff_rs = rs;     % firing rates
+diff_spk = spk;   % spikes
+diff_IPSCs = params.IPSCs;  % IPSCs
 
-    stims = struct();
-    stims.mode = 'none';
-    [W, REC, spk, rs, all_fr, out, params] = LIF_network_fnc(model_path, scaling_factor,...
-        u, stims, down_sample, use_initial_weights);
-    dt = params.dt;
-    T = params.T;
-    t = dt:dt:T;
-
-    % diff_out = out;   % LIF network output
-    % diff_rs = rs;     % firing rates
-    % diff_spk = spk;   % spikes
-    diff_IPSCs(:,:,i) = params.IPSCs;  % IPSCs
-
-end
 
 % --------------------------------------------------------------
 % Plot the network output
@@ -187,7 +190,7 @@ set(gca, 'YDir','normal')
 % Save IPSCs
 % --------------------------------------------------------------
 
-save('Task_xor_N_200_Taus_4.0_25.0_Act_sigmoid_2019_09_06_152659_IPSCs.mat', 'diff_IPSCs','same_IPSCs')
+save([model_dir_path,'/','IPSCs.mat'], 'diff_IPSCs','same_IPSCs')
 
 %% PACs calculation
 
@@ -230,7 +233,7 @@ for i=1:n_trials
 
     stims = struct();
     stims.mode = 'none';
-    [W, REC, spk, rs, all_fr, out, params] = LIF_network_fnc(model_path, scaling_factor,...
+    [W, REC, spk, rs, all_fr, out, params] = LIF_network_fnc(file_path, scaling_factor,...
         u, stims, down_sample, use_initial_weights);
     dt = params.dt;
     T = params.T;
@@ -240,7 +243,7 @@ for i=1:n_trials
 
 end
 
-clearvars -except diff_IPSCs
+clearvars -except diff_IPSCs model_dir_path
 
 %% organize data for function
 
@@ -248,24 +251,17 @@ datMat = squeeze(diff_IPSCs(1,:,:)); % just take the first neuron; samples x tri
 srate = 20000; % sampling rate
 n_surrogates = 200; % 200 were used for z-scored MI in Daume et al
 n_bins = 18; % go by default
-LF_steps = 2:2:14;
+LF_steps = 2:1:30;
 LF_bw = 2;
-HF_steps = 30:5:150;
+HF_steps = 30:2:150;
 tcutEdge = 0;
 
+% run function and save variables
 [comdlgrm, comdlgrm_z, phase2power] = cfc_tort_comodulogram(datMat,srate,n_surrogates,n_bins,LF_steps,LF_bw,HF_steps,tcutEdge);
+save([model_dir_path, '/', 'comodulogram_diffIPSCs15.mat'],'comdlgrm','comdlgrm_z','phase2power')
+load([model_dir_path, '/', 'comodulogram_diffIPSCs15.mat'],'comdlgrm','comdlgrm_z','phase2power')
 
-save('comodulogram_diffIPSCs15.mat','comdlgrm','comdlgrm_z','phase2power')
-
-figure; hold on; axis image
-x0=10; y0=10; width=1000; height=800;
-set(gcf,'position',[x0,y0,width,height])
-imagesc(comdlgrm_z);
-xticks(1:length(HF_steps)); xticklabels(HF_steps); xlabel('frequency for amplitude (Hz)', 'FontSize',16);
-yticks(1:length(LF_steps)); yticklabels(LF_steps); ylabel('frequency for phase (Hz)','FontSize',16)
-cb = colorbar(); ylabel(cb, 'Modulation Index, z-scored', 'FontSize',16,'Rotation',270)
-
-
+% plot
 figure; hold on; axis image
 x0=10; y0=10; width=800; height=1500;
 set(gcf,'position',[x0,y0,width,height])
@@ -285,6 +281,15 @@ xticks(1:length(LF_steps)); xticklabels(LF_steps); xlabel('frequency for phase (
 cb = colorbar(); ylabel(cb, 'Modulation Index', 'FontSize',16,'Rotation',270)
 saveas(gcf, 'comdlgrm_diffIPSCs15.png')
 
+
+[n_phase, n_amplitude, n_bins] = size(phase2power);
+for i_phase = 1:n_phase
+    figure; hold on; 
+    for i_amplitude = 1:n_amplitude
+        plot(squeeze(phase2power(i_phase, i_amplitude, :)))
+    end
+    title(['phase ',num2str(LF_steps(i_phase))])
+end
 
 % cutTrial = logical(tcutEdge);
 % 

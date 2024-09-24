@@ -290,6 +290,7 @@ if args.mode.lower() == 'train':
 
             # XOR task
             elif args.task.lower() == 'xor':
+                resp_onset = settings['stim_on'] + 2*settings['stim_dur'] + settings['delay']
                 if (tr-1)%training_params['eval_freq'] == 0:
                     eval_perf = np.zeros((1, training_params['eval_tr']))
                     eval_losses = np.zeros((1, training_params['eval_tr']))
@@ -304,10 +305,10 @@ if args.mode.lower() == 'train':
                         eval_os[ii, :] = np.array(eval_o).flatten()
                         eval_labels.append(eval_label)
                         if eval_label == 'same':
-                            if np.max(eval_o[200:]) > training_params['eval_amp_threh']:
+                            if np.max(eval_o[resp_onset:]) > training_params['eval_amp_threh']:
                                 eval_perf[0, ii] = 1
                         else:
-                            if np.min(eval_o[200:]) < -training_params['eval_amp_threh']:
+                            if np.min(eval_o[resp_onset:]) < -training_params['eval_amp_threh']:
                                 eval_perf[0, ii] = 1
 
                     eval_perf_mean = np.nanmean(eval_perf, 1)

@@ -7,14 +7,26 @@
 
 clear; clc;
 
+current_path = pwd;
+
 % First, load one trained rate RNN
 % Make sure lambda_grid_search.m was performed on the model.
+
 % Update model_path to point where the trained model is
 % model_path = '/Users/Renee/Downloads/spikeRNN/models/go-nogo/P_rec_0.2_Taus_4.0_20.0'; 
 model_path = '/home/nuttidalab/Documents/spikeRNN/models/DMS_OSF';
 % model_path = '/home/nuttidalab/Documents/spikeRNN/models/xor';
 mat_file = dir(fullfile(model_path, '*.mat'));
 model_name = mat_file(1).name;
+
+% make a folder for the model
+cd(model_path)
+if ~exist(model_name(1:(end-4)), 'dir')
+    mkdir(model_name)
+end
+
+cd(current_path)
+
 model_path = fullfile(model_path, model_name);
 load(model_path);
 
@@ -236,20 +248,45 @@ datMat = squeeze(diff_IPSCs(1,:,:)); % just take the first neuron; samples x tri
 srate = 20000; % sampling rate
 n_surrogates = 200; % 200 were used for z-scored MI in Daume et al
 n_bins = 18; % go by default
-LF_steps = 2:2:14;
+LF_steps = 2:1:30;
 LF_bw = 2;
-HF_steps = 30:5:150;
+HF_steps = 30:2:150;
 tcutEdge = 0;
 
+% run function and save variables
 [comdlgrm, comdlgrm_z, phase2power] = cfc_tort_comodulogram(datMat,srate,n_surrogates,n_bins,LF_steps,LF_bw,HF_steps,tcutEdge);
+save('comodulogram_large_diffIPSCs15.mat','comdlgrm','comdlgrm_z','phase2power')
+load('comodulogram_large_diffIPSCs15.mat','comdlgrm','comdlgrm_z','phase2power')
+
+% plot
+figure; hold on; axis image
+x0=10; y0=10; width=800; height=1500;
+set(gcf,'position',[x0,y0,width,height])
+imagesc(transpose(comdlgrm_z));
+yticks(1:length(HF_steps)); yticklabels(HF_steps); ylabel('frequency for amplitude (Hz)', 'FontSize',16);
+xticks(1:length(LF_steps)); xticklabels(LF_steps); xlabel('frequency for phase (Hz)','FontSize',16)
+cb = colorbar(); ylabel(cb, 'Modulation Index, z-scored', 'FontSize',16,'Rotation',270)
+saveas(gcf, 'comdlgrmz_large_diffIPSCs15.png')
+
 
 figure; hold on; axis image
-x0=10; y0=10; width=1000; height=800;
+x0=10; y0=10; width=800; height=1500;
 set(gcf,'position',[x0,y0,width,height])
-imagesc(comdlgrm_z);
-xticks(1:length(HF_steps)); xticklabels(HF_steps); xlabel('frequency for amplitude (Hz)');
-yticks(1:length(LF_steps)); yticklabels(LF_steps); ylabel('frequency for phase (Hz)')
-cb = colorbar(); ylabel(cb, 'Modulation Index, z-scored', fot)
+imagesc(transpose(comdlgrm));
+yticks(1:length(HF_steps)); yticklabels(HF_steps); ylabel('frequency for amplitude (Hz)', 'FontSize',16);
+xticks(1:length(LF_steps)); xticklabels(LF_steps); xlabel('frequency for phase (Hz)','FontSize',16)
+cb = colorbar(); ylabel(cb, 'Modulation Index', 'FontSize',16,'Rotation',270)
+saveas(gcf, 'comdlgrm_large_diffIPSCs15.png')
+
+
+[n_phase, n_amplitude, n_bins] = size(phase2power);
+for i_phase = 1:n_phase
+    figure; hold on; 
+    for i_amplitude = 1:n_amplitude
+        plot(squeeze(phase2power(i_phase, i_amplitude, :)))
+    end
+    title('phase %d')
+end
 
 % cutTrial = logical(tcutEdge);
 % 
