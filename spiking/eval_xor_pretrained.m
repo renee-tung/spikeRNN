@@ -259,7 +259,7 @@ imagesc(transpose(comdlgrm_z));
 yticks(1:length(HF_steps)); yticklabels(HF_steps); ylabel('frequency for amplitude (Hz)', 'FontSize',16);
 xticks(1:length(LF_steps)); xticklabels(LF_steps); xlabel('frequency for phase (Hz)','FontSize',16)
 cb = colorbar(); ylabel(cb, 'Modulation Index, z-scored', 'FontSize',16,'Rotation',270)
-saveas(gcf, 'comdlgrmz_diffIPSCs15.png')
+saveas(gcf, [model_dir_path, '/', 'comdlgrmz_diffIPSCs15.png'])
 
 
 figure; hold on; axis image
@@ -269,7 +269,7 @@ imagesc(transpose(comdlgrm));
 yticks(1:length(HF_steps)); yticklabels(HF_steps); ylabel('frequency for amplitude (Hz)', 'FontSize',16);
 xticks(1:length(LF_steps)); xticklabels(LF_steps); xlabel('frequency for phase (Hz)','FontSize',16)
 cb = colorbar(); ylabel(cb, 'Modulation Index', 'FontSize',16,'Rotation',270)
-saveas(gcf, 'comdlgrm_diffIPSCs15.png')
+saveas(gcf, [model_dir_path, '/', 'comdlgrm_diffIPSCs15.png'])
 
 
 [n_phase, n_amplitude, n_bins] = size(phase2power);

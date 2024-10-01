@@ -319,7 +319,7 @@ if args.mode.lower() == 'train':
                         training_success = True
                         break
 
-            # Sensory integration task
+            # Sensory integration task; NOTE: IF USE, NEED TO CHANGE EVAL_O TO RESP_ONSET: INSTEAD OF -200
             elif args.task.lower() == 'mante':
                 if (tr-1)%training_params['eval_freq'] == 0:
                     eval_perf = np.zeros((1, training_params['eval_tr']))

@@ -19,7 +19,7 @@ current_path = pwd;
 % mat_file = dir(fullfile(model_path, '*.mat'));
 % model_name = mat_file(1).name;
 
-model_path = '/home/nuttidalab/Documents/spikeRNN/models/xor/P_rec_0.2_Taus_4.0_20.0';
+model_path = '/home/nuttidalab/Documents/spikeRNN/models/xor/P_rec_0.2_Taus_4.0_25.0';
 mat_file = dir(fullfile(model_path, '*.mat'));
 model_name = mat_file(1).name;
 
@@ -41,7 +41,7 @@ load(file_path);
 % model_name = mat_file(1).name;
 % model_path = fullfile(model_path, model_name);
 
-model_path = '/home/nuttidalab/Documents/spikeRNN/models/xor/P_rec_0.2_Taus_4.0_20.0';
+model_path = '/home/nuttidalab/Documents/spikeRNN/models/xor/P_rec_0.2_Taus_4.0_25.0';
 mat_file = dir(fullfile(model_path, '*.mat'));
 model_name = mat_file(1).name;
 file_path = fullfile(model_path, model_name);
@@ -51,7 +51,7 @@ scaling_factor = opt_scaling_factor;
 down_sample = 1;
 
 % --------------------------------------------------------------
-% Same trial example
+% Same +1/+1 trial example
 % --------------------------------------------------------------
 
 T = 300;
@@ -67,7 +67,7 @@ u(2, stim_on+stim_dur+delay:stim_on+2*stim_dur+delay) = 1; % second stim is +1
 % Run the LIF simulation 
 stims = struct();
 stims.mode = 'none';
-[W, REC, spk, rs, all_fr, out, params] = LIF_network_fnc(model_path, scaling_factor,...
+[W, REC, spk, rs, all_fr, out, params] = LIF_network_fnc(file_path, scaling_factor,...
 u, stims, down_sample, use_initial_weights);
 dt = params.dt;
 T = params.T;
@@ -76,12 +76,38 @@ t = dt:dt:T;
 same_out = out;   % LIF network output
 same_rs = rs;     % firing rates
 same_spk = spk;   % spikes
-same_IPSCs = params.IPSCs;  % IPSCs
-
-
+same_IPSCs_pos = params.IPSCs;  % IPSCs
 
 % --------------------------------------------------------------
-% Diff trial example
+% Same -1/-1 trial example
+% --------------------------------------------------------------
+
+T = 300;
+stim_on = 50;
+stim_dur = 50;
+delay = 10;
+
+u = zeros(2, T+1); % input stim
+u(1, stim_on:stim_on+stim_dur) = -1; % first stim is -1
+u(2, stim_on+stim_dur+delay:stim_on+2*stim_dur+delay) = -1; % second stim is -1
+
+
+% Run the LIF simulation 
+stims = struct();
+stims.mode = 'none';
+[W, REC, spk, rs, all_fr, out, params] = LIF_network_fnc(file_path, scaling_factor,...
+u, stims, down_sample, use_initial_weights);
+dt = params.dt;
+T = params.T;
+t = dt:dt:T;
+
+same_out = out;   % LIF network output
+same_rs = rs;     % firing rates
+same_spk = spk;   % spikes
+same_IPSCs_neg = params.IPSCs;  % IPSCs
+
+% --------------------------------------------------------------
+% Diff +1/-1 trial example
 % --------------------------------------------------------------
 
 T = 300;
@@ -96,7 +122,34 @@ u(2, stim_on+stim_dur+delay:stim_on+2*stim_dur+delay) = -1; % second stim is -1
 % Run the LIF simulation
 stims = struct();
 stims.mode = 'none';
-[W, REC, spk, rs, all_fr, out, params] = LIF_network_fnc(model_path, scaling_factor,...
+[W, REC, spk, rs, all_fr, out, params] = LIF_network_fnc(file_path, scaling_factor,...
+    u, stims, down_sample, use_initial_weights);
+dt = params.dt;
+T = params.T;
+t = dt:dt:T;
+
+% diff_out = out;   % LIF network output
+% diff_rs = rs;     % firing rates
+% diff_spk = spk;   % spikes
+diff_IPSCs_pos = params.IPSCs;  % IPSCs
+
+% --------------------------------------------------------------
+% Diff -1/+1 trial example
+% --------------------------------------------------------------
+
+T = 300;
+stim_on = 50;
+stim_dur = 50;
+delay = 10;
+
+u = zeros(2, T+1); % input stim
+u(1, stim_on:stim_on+stim_dur) = -1; % first stim is -1
+u(2, stim_on+stim_dur+delay:stim_on+2*stim_dur+delay) = 1; % second stim is +1
+
+% Run the LIF simulation
+stims = struct();
+stims.mode = 'none';
+[W, REC, spk, rs, all_fr, out, params] = LIF_network_fnc(file_path, scaling_factor,...
     u, stims, down_sample, use_initial_weights);
 dt = params.dt;
 T = params.T;
@@ -105,7 +158,7 @@ t = dt:dt:T;
 diff_out = out;   % LIF network output
 diff_rs = rs;     % firing rates
 diff_spk = spk;   % spikes
-diff_IPSCs = params.IPSCs;  % IPSCs
+diff_IPSCs_neg = params.IPSCs;  % IPSCs
 
 
 % --------------------------------------------------------------
@@ -161,12 +214,20 @@ ylim([-5, 205]);
 % --------------------------------------------------------------
 
 figure; hold on; 
-plot(transpose(diff_IPSCs))
-title('Diff trial IPSCs')
+plot(transpose(diff_IPSCs_pos))
+title('Diff trial IPSCs +1/-1')
 
 figure; hold on; 
-plot(transpose(same_IPSCs))
-title('Same trial IPSCs')
+plot(transpose(same_IPSCs_pos))
+title('Same trial IPSCs +1/+1')
+
+figure; hold on; 
+plot(transpose(diff_IPSCs_neg))
+title('Diff trial IPSCs -1/+1')
+
+figure; hold on; 
+plot(transpose(same_IPSCs_neg))
+title('Same trial IPSCs -1/-1')
 
 
 % --------------------------------------------------------------
@@ -190,7 +251,7 @@ set(gca, 'YDir','normal')
 % Save IPSCs
 % --------------------------------------------------------------
 
-save([model_dir_path,'/','IPSCs.mat'], 'diff_IPSCs','same_IPSCs')
+save([model_dir_path,'/','IPSCs.mat'], 'diff_IPSCs_pos','same_IPSCs_pos', 'diff_IPSCs_neg','same_IPSCs_neg')
 
 %% PACs calculation
 
