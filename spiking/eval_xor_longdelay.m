@@ -21,7 +21,7 @@ current_path = pwd;
 
 model_path = '/home/nuttidalab/Documents/spikeRNN/models/xor/P_rec_0.2_Taus_4.0_25.0';
 mat_file = dir(fullfile(model_path, '*.mat'));
-model_name = mat_file(1).name;
+model_name = mat_file(3).name; % to change which model
 
 % make a folder for the model
 cd(model_path)
@@ -35,16 +35,16 @@ cd(current_path)
 file_path = fullfile(model_path, model_name);
 load(file_path);
 
-% get model_path again bc was written over
-% model_path = '/home/nuttidalab/Documents/spikeRNN/models/DMS_OSF';
+% % get model_path again bc was written over
+% % model_path = '/home/nuttidalab/Documents/spikeRNN/models/DMS_OSF';
+% % mat_file = dir(fullfile(model_path, '*.mat'));
+% % model_name = mat_file(1).name;
+% % model_path = fullfile(model_path, model_name);
+% 
+% model_path = '/home/nuttidalab/Documents/spikeRNN/models/xor/P_rec_0.2_Taus_4.0_25.0';
 % mat_file = dir(fullfile(model_path, '*.mat'));
 % model_name = mat_file(1).name;
-% model_path = fullfile(model_path, model_name);
-
-model_path = '/home/nuttidalab/Documents/spikeRNN/models/xor/P_rec_0.2_Taus_4.0_25.0';
-mat_file = dir(fullfile(model_path, '*.mat'));
-model_name = mat_file(1).name;
-file_path = fullfile(model_path, model_name);
+% file_path = fullfile(model_path, model_name);
 
 use_initial_weights = false;
 scaling_factor = opt_scaling_factor;
@@ -54,7 +54,6 @@ down_sample = 1;
 
 % model eval on 100 random trials
 n_trials = 100;
-resp_onset = (stim_on + 2*stim_dur + delay)/200*20000;
 eval_amp_threshold = 0.7;
 eval_perf = zeros(n_trials,1);
 
@@ -62,11 +61,7 @@ T = 350;
 stim_on = 50;
 stim_dur = 50;
 delay = 150; % longer delay
-
-u = zeros(2, T+1); % input stim
-u(1, stim_on:stim_on+stim_dur) = 1; % first stim is +1
-u(2, stim_on+stim_dur+delay:stim_on+2*stim_dur+delay) = 1; % second stim is +1
-
+resp_onset = (stim_on + 2*stim_dur + delay)/200*20000;
 
 % Run the LIF simulation 
 stims = struct();
@@ -78,14 +73,14 @@ for i = 1:n_trials+1
     [W, REC, spk, rs, all_fr, eval_o, params] = LIF_network_fnc(file_path, scaling_factor,...
         u, stims, down_sample, use_initial_weights);
     if eval_label == "same"
+        plot(transpose(eval_o), 'Color',[1, 0, 0, 0.4])
         if max(eval_o(resp_onset:end)) > eval_amp_threshold
             eval_perf(i) = 1;
-            plot(transpose(eval_o), 'Color',[1, 0, 0, 0.4])
         end
     else
+        plot(transpose(eval_o), 'Color',[0, 0, 1, 0.4])
         if min(eval_o(resp_onset:end)) < -eval_amp_threshold
             eval_perf(i) = 1;
-            plot(transpose(eval_o), 'Color',[0, 0, 1, 0.4])
         end
     end
 end
@@ -194,6 +189,7 @@ scatter3(pcs_diffneg(stim2_time,1), pcs_diffneg(stim2_time,2), pcs_diffneg(stim2
 scatter3(pcs_diffneg(end,1), pcs_diffneg(end,2), pcs_diffneg(end,3), 300, 'g','filled','pentagram')
 
 legend show
+saveas(gcf,[model_dir_path '/trajectories_delay150.png'])
 
 % downsampled figure
 ds = 100;
@@ -224,6 +220,7 @@ scatter3(pcs_diffpos_ds(end,1), pcs_diffpos_ds(end,2), pcs_diffpos_ds(end,3), 30
 scatter3(pcs_diffneg_ds(stim1_time/ds,1), pcs_diffneg_ds(stim1_time/ds,2), pcs_diffneg_ds(stim1_time/ds,3), 100, 'filled', 'g','<')
 scatter3(pcs_diffneg_ds(stim2_time/ds,1), pcs_diffneg_ds(stim2_time/ds,2), pcs_diffneg_ds(stim2_time/ds,3), 100, 'filled', 'g')
 scatter3(pcs_diffneg_ds(end,1), pcs_diffneg_ds(end,2), pcs_diffneg_ds(end,3), 300, 'g','filled','pentagram')
+saveas(gcf,[model_dir_path '/trajectories_delay150_downsample.png'])
 
 
 %% get IPSCs avg'd over 25 trials of each type

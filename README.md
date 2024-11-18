@@ -17,6 +17,7 @@ The code for constructing and training **continuous-variable rate recurrent neur
 - tensorflow-gpu 1.5.0 or 1.10.0 (if a GPU card is available, this can speed up training time for large models)
 - numpy 1.16.4
 - scipy 1.3.1
+- python 3.11.10
 
 ### Spiking RNN
 The code for constructing **spiking RNN models** is implemented in MATLAB (tested in R2016a and R2016b). The code implements leaky integrate-and-fire (LIF) networks, and is a modified version of the code developed by [Nicola et al., 2016](https://senselab.med.yale.edu/modeldb/ShowModel.cshtml?model=190565&file=/NicolaClopath2017/#tabs-1).
