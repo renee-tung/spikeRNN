@@ -8,6 +8,9 @@ import matplotlib.pyplot as plt
 import pickle as pk
 # from mpl_toolkits.mplot3d import axes3d
 
+import sys
+sys.path.append('/home/nuttidalab/Documents/spikeRNN/analysis_code/utils/')
+
 import vis_utils as vu
 import importlib
 import pdb
@@ -28,7 +31,7 @@ for models_type in models_types:
     print(f'Running {models_type} models...')
 
     # load list of models
-    models_dir = '/home/nuttidalab/Documents/spikeRNN/models/DMS_OSF/' # dir where all models are located
+    models_dir = '/scratch/spikeRNN/models/DMS_OSF/' # dir where all models are located
     results_dir = f'{models_dir}{models_type}/' # dir where results are saved
 
     model_list_path = f'{results_dir}{models_type}_list.mat' # list (saved from matlab) of models of interest

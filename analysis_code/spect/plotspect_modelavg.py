@@ -7,6 +7,9 @@ import numpy as np
 import matplotlib.pyplot as plt 
 # from mpl_toolkits.mplot3d import axes3d
 
+import sys
+sys.path.append('/home/nuttidalab/Documents/spikeRNN/analysis_code/utils/')
+
 import vis_utils as vu
 import importlib
 import pdb

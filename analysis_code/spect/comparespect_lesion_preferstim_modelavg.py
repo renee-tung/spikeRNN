@@ -1,4 +1,5 @@
-# script to compare good vs lesioned spectrogram plots
+## script to compare good vs lesioned spectrogram plots
+# specifically aggregating by model's preferred trial (rather than just +1 or -1)
 
 
 # Script to make spectrogram plots across models
@@ -48,15 +49,20 @@ for lesion_connections in lesion_connections_list:
 
     lesion_name = ['' if lesion_connections == 0 else f'_lesion{lesion_connections}']
 
-    all_powers_pos_exc = []
-    all_powers_pos_inh = []
-    all_powers_neg_exc = []
-    all_powers_neg_inh = []
+    all_powers_pref_exc = []
+    all_powers_pref_inh = []
+    all_powers_npref_exc = []
+    all_powers_npref_inh = []
     for n_model, model_fname in enumerate(model_list):
         
         print(f'Loading model {n_model+1}/{n_models}...')
         model_dir = os.path.join(models_dir, model_fname[:model_fname.rfind('.')]) # dir for this model
-        
+
+        # load model to get preferred stim
+        mat_data = scipy.io.loadmat(os.path.join(models_dir,model_fname)) # load model data
+        pref_stim = mat_data['pref_stim'][0][0]
+        del mat_data        
+
         # load to get trial times
         ipsc_savename = f'IPSCs_50travg{norm_name[0]}{lesion_name[0]}.mat'
         ipsc_data = scipy.io.loadmat(os.path.join(model_dir, ipsc_savename)) # load IPSC data ***
@@ -77,11 +83,19 @@ for lesion_connections in lesion_connections_list:
         stim2_on = stim_on_time + stim_dur_time + delay_time
         stim2_off = stim_on_time + 2*stim_dur_time + delay_time
 
-        # load spectral data
-        s_pos_exc = np.load(os.path.join(model_dir, f's_pos_exc{norm_name[0]}{lesion_name[0]}.npy'))
-        s_pos_inh = np.load(os.path.join(model_dir, f's_pos_inh{norm_name[0]}{lesion_name[0]}.npy'))
-        s_neg_exc = np.load(os.path.join(model_dir, f's_neg_exc{norm_name[0]}{lesion_name[0]}.npy'))
-        s_neg_inh = np.load(os.path.join(model_dir, f's_neg_inh{norm_name[0]}{lesion_name[0]}.npy'))
+        # load spectral data by preferred vs not
+        if pref_stim == 1:
+            print(f'pref +1: {pref_stim}')
+            s_pref_exc = np.load(os.path.join(model_dir, f's_pos_exc{norm_name[0]}{lesion_name[0]}.npy'))
+            s_pref_inh = np.load(os.path.join(model_dir, f's_pos_inh{norm_name[0]}{lesion_name[0]}.npy'))
+            s_npref_exc = np.load(os.path.join(model_dir, f's_neg_exc{norm_name[0]}{lesion_name[0]}.npy'))
+            s_npref_inh = np.load(os.path.join(model_dir, f's_neg_inh{norm_name[0]}{lesion_name[0]}.npy'))
+        else:
+            print(f'pref -1: {pref_stim}')
+            s_pref_exc = np.load(os.path.join(model_dir, f's_neg_exc{norm_name[0]}{lesion_name[0]}.npy'))
+            s_pref_inh = np.load(os.path.join(model_dir, f's_neg_inh{norm_name[0]}{lesion_name[0]}.npy'))
+            s_npref_exc = np.load(os.path.join(model_dir, f's_pos_exc{norm_name[0]}{lesion_name[0]}.npy'))
+            s_npref_inh = np.load(os.path.join(model_dir, f's_pos_inh{norm_name[0]}{lesion_name[0]}.npy'))
         f = np.load(os.path.join(model_dir, 'f.npy'))
         t = np.load(os.path.join(models_dir, f't{delay_name}.npy'))
 
@@ -93,10 +107,10 @@ for lesion_connections in lesion_connections_list:
         t_skip = 15
 
         # now get frequency bands (loop over bands)
-        powers_pos_exc = np.zeros((len(freqbands_list), s_pos_exc.shape[1]))
-        powers_pos_inh = np.zeros((len(freqbands_list), s_pos_inh.shape[1]))
-        powers_neg_exc = np.zeros((len(freqbands_list), s_neg_exc.shape[1]))
-        powers_neg_inh = np.zeros((len(freqbands_list), s_neg_inh.shape[1]))
+        powers_pref_exc = np.zeros((len(freqbands_list), s_pref_exc.shape[1]))
+        powers_pref_inh = np.zeros((len(freqbands_list), s_pref_inh.shape[1]))
+        powers_npref_exc = np.zeros((len(freqbands_list), s_npref_exc.shape[1]))
+        powers_npref_inh = np.zeros((len(freqbands_list), s_npref_inh.shape[1]))
         for i,power in enumerate(freqbands_list):
             if isinstance(power, str):
                 if power == "theta":
@@ -112,34 +126,34 @@ for lesion_connections in lesion_connections_list:
 
             # calculate power in specified band
             f_band_idx = np.where((f >= power_range[0]) & (f <=power_range[1]))[0]
-            powers_pos_exc[i,:] = np.nanmean(10*np.log(s_pos_exc[f_band_idx,:]), axis=0)
-            powers_pos_inh[i,:] = np.nanmean(10*np.log(s_pos_inh[f_band_idx,:]), axis=0)
-            powers_neg_exc[i,:] = np.nanmean(10*np.log(s_neg_exc[f_band_idx,:]), axis=0)
-            powers_neg_inh[i,:] = np.nanmean(10*np.log(s_neg_inh[f_band_idx,:]), axis=0)
+            powers_pref_exc[i,:] = np.nanmean(10*np.log(s_pref_exc[f_band_idx,:]), axis=0)
+            powers_pref_inh[i,:] = np.nanmean(10*np.log(s_pref_inh[f_band_idx,:]), axis=0)
+            powers_npref_exc[i,:] = np.nanmean(10*np.log(s_npref_exc[f_band_idx,:]), axis=0)
+            powers_npref_inh[i,:] = np.nanmean(10*np.log(s_npref_inh[f_band_idx,:]), axis=0)
 
-        all_powers_pos_exc.append(powers_pos_exc)
-        all_powers_pos_inh.append(powers_pos_inh)
-        all_powers_neg_exc.append(powers_neg_exc)
-        all_powers_neg_inh.append(powers_neg_inh)
+        all_powers_pref_exc.append(powers_pref_exc)
+        all_powers_pref_inh.append(powers_pref_inh)
+        all_powers_npref_exc.append(powers_npref_exc)
+        all_powers_npref_inh.append(powers_npref_inh)
 
-        del s_pos_exc, s_pos_inh, s_neg_exc, s_neg_inh
-        del powers_pos_exc, powers_pos_inh, powers_neg_exc, powers_neg_inh
+        del s_pref_exc, s_pref_inh, s_npref_exc, s_npref_inh
+        del powers_pref_exc, powers_pref_inh, powers_npref_exc, powers_npref_inh
 
     # convert to matrices
-    all_powers_pos_exc = np.array(all_powers_pos_exc) # should be (n_models, n_freqbands, n_timepoints)
-    all_powers_pos_inh = np.array(all_powers_pos_inh)
-    all_powers_neg_exc = np.array(all_powers_neg_exc)
-    all_powers_neg_inh = np.array(all_powers_neg_inh)
+    all_powers_pref_exc = np.array(all_powers_pref_exc) # should be (n_models, n_freqbands, n_timepoints)
+    all_powers_pref_inh = np.array(all_powers_pref_inh)
+    all_powers_npref_exc = np.array(all_powers_npref_exc)
+    all_powers_npref_inh = np.array(all_powers_npref_inh)
 
     # get band powers from each spectrogram
-    powers_pos_mean = [np.mean(all_powers_pos_exc, axis=0), 
-                    np.mean(all_powers_pos_inh, axis=0)]
-    powers_pos_sem = [np.std(all_powers_pos_exc, axis=0)/np.sqrt(n_models),
-                        np.std(all_powers_pos_inh, axis=0)/np.sqrt(n_models)]
-    powers_neg_mean = [np.mean(all_powers_neg_exc, axis=0),
-                    np.mean(all_powers_neg_inh, axis=0)]
-    powers_neg_sem = [np.std(all_powers_neg_exc, axis=0)/np.sqrt(n_models),
-                        np.std(all_powers_neg_inh, axis=0)/np.sqrt(n_models)]
+    powers_pref_mean = [np.mean(all_powers_pref_exc, axis=0), 
+                    np.mean(all_powers_pref_inh, axis=0)]
+    powers_pref_sem = [np.std(all_powers_pref_exc, axis=0)/np.sqrt(n_models),
+                        np.std(all_powers_pref_inh, axis=0)/np.sqrt(n_models)]
+    powers_npref_mean = [np.mean(all_powers_npref_exc, axis=0),
+                    np.mean(all_powers_npref_inh, axis=0)]
+    powers_npref_sem = [np.std(all_powers_npref_exc, axis=0)/np.sqrt(n_models),
+                        np.std(all_powers_npref_inh, axis=0)/np.sqrt(n_models)]
 
     band_means = np.zeros((len(freqbands_list),2,2,len(t)))
     band_sems = np.zeros((len(freqbands_list),2,2,len(t)))
@@ -156,13 +170,13 @@ for lesion_connections in lesion_connections_list:
             elif power == "gamma2":
                 power_range = [70,140]
         for j, neuron_type in enumerate(['excitatory','inhibitory']):
-            for k, trial_type in enumerate(['+1', '-1']):
-                if trial_type == '+1':
-                    band_mean = powers_pos_mean[j][i,:]
-                    band_sem = powers_pos_sem[j][i,:]
+            for k, trial_type in enumerate(['pref', 'npref']):
+                if trial_type == 'pref':
+                    band_mean = powers_pref_mean[j][i,:]
+                    band_sem = powers_pref_sem[j][i,:]
                 else:
-                    band_mean = powers_neg_mean[j][i,:]
-                    band_sem = powers_neg_sem[j][i,:]
+                    band_mean = powers_npref_mean[j][i,:]
+                    band_sem = powers_npref_sem[j][i,:]
                 band_means[i,j,k,:] = band_mean
                 band_sems[i,j,k,:] = band_sem
 
@@ -189,7 +203,7 @@ for i, power in enumerate(freqbands_list):
             power_range = [70,140]
     plt.figure(figsize=(16,8))
     for j, neuron_type in enumerate(['excitatory','inhibitory']):
-        for k, trial_type in enumerate(['+1', '-1']):
+        for k, trial_type in enumerate(['preferred', 'non-preferred']):
             for m, lesion_connections in enumerate(lesion_connections_list):
                 band_mean = models_bandmeans[m][i,j,k,:]
                 band_sem = models_bandsems[m][i,j,k,:]
@@ -205,4 +219,4 @@ for i, power in enumerate(freqbands_list):
     plt.xticks(range(len(t))[::t_skip],t[::t_skip])
     plt.title(f'{power} ({power_range[0]}-{power_range[1]}Hz) power in {models_type}, with {lesion_connections_list[0]} and {lesion_connections_list[1]} lesioning')
     plt.legend()
-    plt.savefig(f'{results_dir}{power}_power_lesion_{lesion_connections_list[0]}_{lesion_connections_list[1]}.png')
+    plt.savefig(f'{results_dir}{power}_power_lesion_{lesion_connections_list[0]}_{lesion_connections_list[1]}_prefstim.png')

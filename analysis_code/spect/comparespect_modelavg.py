@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 # from mpl_toolkits.mplot3d import axes3d
 from scipy.stats import zscore
 
-import model
+import sys
+sys.path.append('/home/nuttidalab/Documents/spikeRNN/analysis_code/utils/')
 
 import vis_utils as vu
 import importlib
