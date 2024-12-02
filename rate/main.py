@@ -39,6 +39,9 @@ from model import generate_target_continuous_mante
 from model import generate_input_stim_go_nogo
 from model import generate_target_continuous_go_nogo
 
+from model import generate_input_stim_letters
+from model import generate_target_continuous_letters
+
 from model import construct_tf
 from model import loss_op
 
@@ -130,6 +133,18 @@ elif args.task.lower() == 'mante':
             'taus': args.decay_taus, # decay time-constants (in steps)
             'task': args.task.lower(), # task name
             }
+    
+elif args.task.lower() == 'letters':
+    # Letters task
+    settings = {
+            'T': 300, # trial duration (in steps)
+            'stim_on': 50, # input stim onset (in steps)
+            'stim_dur': 100, # input stim duration (in steps)
+            'delay': 10, # delay before probe (in steps)
+            'DeltaT': 1, # sampling rate
+            'taus': args.decay_taus, # decay time-constants (in steps)
+            'task': args.task.lower(), # task name
+            }
 
 '''
 Initialize the input and output weight matrices
@@ -146,6 +161,11 @@ elif args.task.lower() == 'xor':
 
 # Sensory integration task
 elif args.task.lower() == 'mante':
+    w_in = np.float32(np.random.randn(N, 4))
+    w_out = np.float32(np.random.randn(1, N)/100)
+
+# Letters task
+elif args.task.lower() == 'letters':
     w_in = np.float32(np.random.randn(N, 4))
     w_out = np.float32(np.random.randn(1, N)/100)
 
@@ -221,6 +241,13 @@ if args.mode.lower() == 'train':
             x0, r0, w0, w_in0, taus_gaus0 = \
                     sess.run([x, r, w, w_in, taus], feed_dict={input_node: u, z: target})
 
+        elif args.task.lower() == 'letters':
+            # Letters task
+            u, label = generate_input_stim_letters(settings)
+            target = generate_target_continuous_letters(settings, label)
+            x0, r0, w0, w_in0, taus_gaus0 = \
+                    sess.run([x, r, w, w_in, taus], feed_dict={input_node: u, z: target})
+
         # For storing all the loss vals
         losses = np.zeros((args.n_trials,))
 
@@ -237,6 +264,9 @@ if args.mode.lower() == 'train':
             elif args.task.lower() == 'mante':
                 u, label = generate_input_stim_mante(settings)
                 target = generate_target_continuous_mante(settings, label)
+            elif args.task.lower() == 'letters':
+                u, label = generate_input_stim_letters(settings)
+                target = generate_target_continuous_letters(settings, label)
 
             print("Trial " + str(tr) + ': ' + str(label))
 
@@ -286,6 +316,7 @@ if args.mode.lower() == 'train':
 
             # XOR task
             elif args.task.lower() == 'xor':
+                resp_onset = settings['stim_on'] + 2*settings['stim_dur'] + settings['delay']
                 if (tr-1)%training_params['eval_freq'] == 0:
                     eval_perf = np.zeros((1, training_params['eval_tr']))
                     eval_losses = np.zeros((1, training_params['eval_tr']))
@@ -300,10 +331,10 @@ if args.mode.lower() == 'train':
                         eval_os[ii, :] = np.array(eval_o).flatten()
                         eval_labels.append(eval_label)
                         if eval_label == 'same':
-                            if np.max(eval_o[200:]) > training_params['eval_amp_threh']:
+                            if np.max(eval_o[resp_onset:]) > training_params['eval_amp_threh']:
                                 eval_perf[0, ii] = 1
                         else:
-                            if np.min(eval_o[200:]) < -training_params['eval_amp_threh']:
+                            if np.min(eval_o[resp_onset:]) < -training_params['eval_amp_threh']:
                                 eval_perf[0, ii] = 1
 
                     eval_perf_mean = np.nanmean(eval_perf, 1)
@@ -334,6 +365,37 @@ if args.mode.lower() == 'train':
                                 eval_perf[0, ii] = 1
                         else:
                             if np.min(eval_o[-200:]) < -training_params['eval_amp_threh']:
+                                eval_perf[0, ii] = 1
+
+                    eval_perf_mean = np.nanmean(eval_perf, 1)
+                    eval_loss_mean = np.nanmean(eval_losses, 1)
+                    print("Perf: %.2f, Loss: %.2f"%(eval_perf_mean, eval_loss_mean))
+
+                    if eval_loss_mean < training_params['loss_threshold'] and eval_perf_mean > 0.95:
+                        training_success = True
+                        break
+
+            # Letters task
+            elif args.task.lower() == 'letters':
+                resp_onset = settings['stim_on'] + settings['stim_dur'] + settings['delay']
+                if (tr-1)%training_params['eval_freq'] == 0:
+                    eval_perf = np.zeros((1, training_params['eval_tr']))
+                    eval_losses = np.zeros((1, training_params['eval_tr']))
+                    eval_os = np.zeros((training_params['eval_tr'], settings['T']-1))
+                    eval_labels = []
+                    for ii in range(eval_perf.shape[-1]):
+                        eval_u, eval_label = generate_input_stim_letters(settings)
+                        eval_target = generate_target_continuous_letters(settings, eval_label)
+                        eval_o, eval_l = sess.run([o, loss], feed_dict = \
+                                {input_node: eval_u, z: eval_target})
+                        eval_losses[0, ii] = eval_l
+                        eval_os[ii, :] = np.array(eval_o).flatten()
+                        eval_labels.append(eval_label)
+                        if eval_label == 1:
+                            if np.max(eval_o[resp_onset:]) > training_params['eval_amp_threh']:
+                                eval_perf[0, ii] = 1
+                        else:
+                            if np.min(eval_o[resp_onset:]) < -training_params['eval_amp_threh']:
                                 eval_perf[0, ii] = 1
 
                     eval_perf_mean = np.nanmean(eval_perf, 1)

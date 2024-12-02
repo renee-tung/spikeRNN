@@ -309,6 +309,48 @@ def generate_input_stim_mante(settings):
 
     return np.vstack((u, c)), label
 
+def generate_input_stim_letters(settings):
+    """
+    Method to generate the input stimulus matrix for the
+    letters WM task
+
+    INPUT
+        settings: dict containing the following keys
+            T: duration of a single trial (in steps)
+            stim_on: stimulus starting time (in steps)
+            stim_dur: stimulus duration (in steps)
+            delay: delay before probe (in steps)
+            taus: time-constants (in steps)
+            DeltaT: sampling rate
+    OUTPUT
+        u: 4xT stimulus matrix
+        label: either +1 or -1
+    """
+
+    T = settings['T']
+    stim_on = settings['stim_on']
+    stim_dur = settings['stim_dur']
+    delay = settings['delay']
+
+    # Initialize u
+    u = np.zeros((4, T))
+
+    # letters task
+    letters = np.arange(0, 4, 1) # 0-3, 4 letter choices
+    stim_letters = np.random.choice(letters, 2, replace=False) # 2 letter choices
+    probe_letter = np.random.choice(letters, 1)[0]
+
+    u[stim_letters, stim_on:stim_on+stim_dur] = 1 # stimulus presentation
+    u[probe_letter, stim_on+stim_dur+delay:] = 1 # probe presentation
+    # u[probe_letter, stim_on+stim_dur+delay:stim_on+2*stim_dur+delay] = 1 # probe presentation
+
+    if probe_letter in stim_letters:
+        label = 1
+    else:
+        label = -1
+
+    return u, label
+
 
 '''
 Task-specific target signals
@@ -400,6 +442,38 @@ def generate_target_continuous_mante(settings, label):
 
     return np.squeeze(z)
 
+def generate_target_continuous_letters(settings, label):
+    """
+    Method to generate a continuous target signal (z) 
+    for the letters task
+
+    INPUT
+        settings: dict containing the following keys
+            T: duration of a single trial (in steps)
+            stim_on: stimulus starting time (in steps)
+            stim_dur: stimulus duration (in steps)
+            delay: delay before maintenance (in steps)
+            taus: time-constants (in steps)
+            DeltaT: sampling rate
+        label: 1 or -1
+    OUTPUT
+        z: 1xT target signal
+    """
+    T = settings['T']
+    stim_on = settings['stim_on']
+    stim_dur = settings['stim_dur']
+    delay = settings['delay']
+    probe_T = stim_on + stim_dur + delay
+
+    z = np.zeros((1, T))
+    if label == 1:
+        z[0, 10+probe_T:] = 1
+    elif label == -1:
+        z[0, 10+probe_T:] = -1
+
+    return np.squeeze(z)
+
+
 '''
 CONSTRUCT TF GRAPH FOR TRAINING
 '''
@@ -450,6 +524,10 @@ def construct_tf(fr_rnn, settings, training_params):
     # Go-NoGo task
     elif task == 'go-nogo':
         stim = tf.placeholder(tf.float32, [1, T], name='u')
+
+    # Letters task
+    elif task == 'letters':
+        stim = tf.placeholder(tf.float32, [4, T], name='u')
 
     # Target node
     z = tf.placeholder(tf.float32, [T,], name='target')
@@ -584,7 +662,7 @@ def eval_tf(model_dir, settings, u):
 
     # Get some additional params
     N = var['N'][0][0]
-    exc_ind = [np.bool(i) for i in var['exc']]
+    # exc_ind = [np.bool(i) for i in var['exc']]
 
     # Get the delays
     taus_gaus = var['taus_gaus']
