@@ -1,0 +1,222 @@
+## script to compare good vs lesioned spectrogram plots
+# specifically aggregating by model's preferred trial (rather than just +1 or -1)
+
+
+# Script to make spectrogram plots across models
+
+import os, scipy.io 
+import numpy as np 
+# %matplotlib ipympl
+import matplotlib.pyplot as plt 
+# from mpl_toolkits.mplot3d import axes3d
+from scipy.stats import zscore
+
+import sys
+sys.path.append('/home/nuttidalab/Documents/spikeRNN/analysis_code/utils/')
+
+import vis_utils as vu
+import importlib
+import pdb
+
+
+# modify these as needed
+normalize_ipscs = 1 # usually will be 1
+models_type = 'good_models' # or 
+# models_type = 'bad_models'
+lesion_connections_list = [0, 'ii'] # if not lesioning put 0, else 'ii' etc
+longer_delay = '' # '' if standard delay (150), longer can be 200 or 250
+
+norm_name = ['' if normalize_ipscs == 1 else '_raw']
+delay_name = ['' if longer_delay == '' else f'_delay{longer_delay}'][0]
+
+
+# load list of models
+models_dir = '/scratch/spikeRNN/models/DMS_OSF/' # dir where all models are located
+results_dir = f'{models_dir}{models_type}/' # dir where results are saved
+
+model_list_path = f'{results_dir}{models_type}_list.mat' # list (saved from matlab) of models of interest
+model_list_cell = scipy.io.loadmat(model_list_path)['stable_mods'][0] 
+model_list = [model_list_cell[i][0] for i in range(len(model_list_cell))]
+n_models = len(model_list)
+print(f'Total: {n_models} {models_type} models')
+
+freqbands_list = ['theta','alpha','beta','gamma1','gamma2']
+
+
+models_bandmeans = []
+models_bandsems = []
+for lesion_connections in lesion_connections_list:
+
+    lesion_name = ['' if lesion_connections == 0 else f'_lesion{lesion_connections}']
+
+    all_powers_pref_exc = []
+    all_powers_pref_inh = []
+    all_powers_npref_exc = []
+    all_powers_npref_inh = []
+    for n_model, model_fname in enumerate(model_list):
+        
+        print(f'Loading model {n_model+1}/{n_models}...')
+        model_dir = os.path.join(models_dir, model_fname[:model_fname.rfind('.')]) # dir for this model
+
+        # load model to get preferred stim
+        mat_data = scipy.io.loadmat(os.path.join(models_dir,model_fname)) # load model data
+        pref_stim = mat_data['pref_stim'][0][0]
+        del mat_data        
+
+        # load to get trial times
+        ipsc_savename = f'IPSCs_50travg{norm_name[0]}{lesion_name[0]}.mat'
+        ipsc_data = scipy.io.loadmat(os.path.join(model_dir, ipsc_savename)) # load IPSC data ***
+        T = ipsc_data['T'][0][0]
+        stim_on = ipsc_data['stim_on'][0][0]
+        stim_dur = ipsc_data['stim_dur'][0][0]
+        delay = ipsc_data['delay'][0][0]
+        fs_rate = 200
+        fs_spk = 20000
+        del ipsc_data
+
+        # get trial times in real time (seconds)
+        stim_on_time = stim_on/fs_rate
+        stim_dur_time = stim_dur/fs_rate
+        delay_time = delay/fs_rate
+        stim1_on = stim_on_time
+        stim1_off = stim_on_time + stim_dur_time
+        stim2_on = stim_on_time + stim_dur_time + delay_time
+        stim2_off = stim_on_time + 2*stim_dur_time + delay_time
+
+        # load spectral data by preferred vs not
+        if pref_stim == 1:
+            print(f'pref +1: {pref_stim}')
+            s_pref_exc = np.load(os.path.join(model_dir, f's_pos_exc{norm_name[0]}{lesion_name[0]}.npy'))
+            s_pref_inh = np.load(os.path.join(model_dir, f's_pos_inh{norm_name[0]}{lesion_name[0]}.npy'))
+            s_npref_exc = np.load(os.path.join(model_dir, f's_neg_exc{norm_name[0]}{lesion_name[0]}.npy'))
+            s_npref_inh = np.load(os.path.join(model_dir, f's_neg_inh{norm_name[0]}{lesion_name[0]}.npy'))
+        else:
+            print(f'pref -1: {pref_stim}')
+            s_pref_exc = np.load(os.path.join(model_dir, f's_neg_exc{norm_name[0]}{lesion_name[0]}.npy'))
+            s_pref_inh = np.load(os.path.join(model_dir, f's_neg_inh{norm_name[0]}{lesion_name[0]}.npy'))
+            s_npref_exc = np.load(os.path.join(model_dir, f's_pos_exc{norm_name[0]}{lesion_name[0]}.npy'))
+            s_npref_inh = np.load(os.path.join(model_dir, f's_pos_inh{norm_name[0]}{lesion_name[0]}.npy'))
+        f = np.load(os.path.join(model_dir, 'f.npy'))
+        t = np.load(os.path.join(models_dir, f't{delay_name}.npy'))
+
+        # plotting info
+        stim1_on_idx = np.where(t <= stim1_on)[0][-1]
+        stim1_off_idx = np.where(t <= stim1_off)[0][-1]
+        stim2_on_idx = np.where(t <= stim2_on)[0][-1]
+        stim2_off_idx = np.where(t <= stim2_off)[0][-1]
+        t_skip = 15
+
+        # now get frequency bands (loop over bands)
+        powers_pref_exc = np.zeros((len(freqbands_list), s_pref_exc.shape[1]))
+        powers_pref_inh = np.zeros((len(freqbands_list), s_pref_inh.shape[1]))
+        powers_npref_exc = np.zeros((len(freqbands_list), s_npref_exc.shape[1]))
+        powers_npref_inh = np.zeros((len(freqbands_list), s_npref_inh.shape[1]))
+        for i,power in enumerate(freqbands_list):
+            if isinstance(power, str):
+                if power == "theta":
+                    power_range = [4,8]
+                elif power == "alpha":
+                    power_range = [9,12]
+                elif power == "beta":
+                    power_range = [13,30]
+                elif power == "gamma1":
+                    power_range = [30,55]
+                elif power == "gamma2":
+                    power_range = [70,140]
+
+            # calculate power in specified band
+            f_band_idx = np.where((f >= power_range[0]) & (f <=power_range[1]))[0]
+            powers_pref_exc[i,:] = np.nanmean(10*np.log(s_pref_exc[f_band_idx,:]), axis=0)
+            powers_pref_inh[i,:] = np.nanmean(10*np.log(s_pref_inh[f_band_idx,:]), axis=0)
+            powers_npref_exc[i,:] = np.nanmean(10*np.log(s_npref_exc[f_band_idx,:]), axis=0)
+            powers_npref_inh[i,:] = np.nanmean(10*np.log(s_npref_inh[f_band_idx,:]), axis=0)
+
+        all_powers_pref_exc.append(powers_pref_exc)
+        all_powers_pref_inh.append(powers_pref_inh)
+        all_powers_npref_exc.append(powers_npref_exc)
+        all_powers_npref_inh.append(powers_npref_inh)
+
+        del s_pref_exc, s_pref_inh, s_npref_exc, s_npref_inh
+        del powers_pref_exc, powers_pref_inh, powers_npref_exc, powers_npref_inh
+
+    # convert to matrices
+    all_powers_pref_exc = np.array(all_powers_pref_exc) # should be (n_models, n_freqbands, n_timepoints)
+    all_powers_pref_inh = np.array(all_powers_pref_inh)
+    all_powers_npref_exc = np.array(all_powers_npref_exc)
+    all_powers_npref_inh = np.array(all_powers_npref_inh)
+
+    # get band powers from each spectrogram
+    powers_pref_mean = [np.mean(all_powers_pref_exc, axis=0), 
+                    np.mean(all_powers_pref_inh, axis=0)]
+    powers_pref_sem = [np.std(all_powers_pref_exc, axis=0)/np.sqrt(n_models),
+                        np.std(all_powers_pref_inh, axis=0)/np.sqrt(n_models)]
+    powers_npref_mean = [np.mean(all_powers_npref_exc, axis=0),
+                    np.mean(all_powers_npref_inh, axis=0)]
+    powers_npref_sem = [np.std(all_powers_npref_exc, axis=0)/np.sqrt(n_models),
+                        np.std(all_powers_npref_inh, axis=0)/np.sqrt(n_models)]
+
+    band_means = np.zeros((len(freqbands_list),2,2,len(t)))
+    band_sems = np.zeros((len(freqbands_list),2,2,len(t)))
+    for i, power in enumerate(freqbands_list):
+        if isinstance(power, str):
+            if power == "theta":
+                power_range = [4,8]
+            elif power == "alpha":
+                power_range = [9,12]
+            elif power == "beta":
+                power_range = [13,30]
+            elif power == "gamma1":
+                power_range = [30,55]
+            elif power == "gamma2":
+                power_range = [70,140]
+        for j, neuron_type in enumerate(['excitatory','inhibitory']):
+            for k, trial_type in enumerate(['pref', 'npref']):
+                if trial_type == 'pref':
+                    band_mean = powers_pref_mean[j][i,:]
+                    band_sem = powers_pref_sem[j][i,:]
+                else:
+                    band_mean = powers_npref_mean[j][i,:]
+                    band_sem = powers_npref_sem[j][i,:]
+                band_means[i,j,k,:] = band_mean
+                band_sems[i,j,k,:] = band_sem
+
+    models_bandmeans.append(band_means) # should be in order of freqband (5) x neuron type (2) x trial type (2) x timepoints
+    models_bandsems.append(band_sems) # should be in order of freqband (5) x neuron type (2) x trial type (2) x timepoints
+
+# np.save(f'{results_dir}models_bandmeans{norm_name[0]}{lesion_name[0]}.npy', models_bandmeans)
+
+
+# plot good and bad on the same plot
+colors = [['r','b'],['m','c']]
+for i, power in enumerate(freqbands_list):
+    print(f'Plotting {power} power for both {models_type} models...')
+    if isinstance(power, str):
+        if power == "theta":
+            power_range = [4,8]
+        elif power == "alpha":
+            power_range = [9,12]
+        elif power == "beta":
+            power_range = [13,30]
+        elif power == "gamma1":
+            power_range = [30,55]
+        elif power == "gamma2":
+            power_range = [70,140]
+    plt.figure(figsize=(16,8))
+    for j, neuron_type in enumerate(['excitatory','inhibitory']):
+        for k, trial_type in enumerate(['preferred', 'non-preferred']):
+            for m, lesion_connections in enumerate(lesion_connections_list):
+                band_mean = models_bandmeans[m][i,j,k,:]
+                band_sem = models_bandsems[m][i,j,k,:]
+                lesion_connections_list[m] = ['no' if lesion_connections == 0 else lesion_connections][0]
+                plt.plot(band_mean, label=f'{trial_type} stim1, {neuron_type}, {lesion_connections_list[m]} lesion', c=colors[m][k], alpha=1, linestyle=['-','--'][j])
+                plt.fill_between(range(len(band_mean)), band_mean - band_sem, band_mean + band_sem, color=colors[m][k], alpha=0.3)
+    plt.axvline(x=stim1_on_idx, color='k', linestyle='--')
+    plt.axvline(x=stim1_off_idx, color='k', linestyle='--')
+    plt.axvline(x=stim2_on_idx, color='k', linestyle='--')
+    plt.axvline(x=stim2_off_idx, color='k', linestyle='--')
+    plt.xlabel('time (s)')
+    plt.ylabel('average power (dB)')
+    plt.xticks(range(len(t))[::t_skip],t[::t_skip])
+    plt.title(f'{power} ({power_range[0]}-{power_range[1]}Hz) power in {models_type}, with {lesion_connections_list[0]} and {lesion_connections_list[1]} lesioning')
+    plt.legend()
+    plt.savefig(f'{results_dir}{power}_power_lesion_{lesion_connections_list[0]}_{lesion_connections_list[1]}_prefstim.png')
