@@ -72,6 +72,8 @@ parser.add_argument("--som_N", required=True,
         type=int, default = 0, help="Number of SST neurons")
 parser.add_argument("--task", required=True,
         type=str, help="Task (XOR, sine, etc...)")
+parser.add_argument("--task_load", required=False,
+        type=int, default=0, help="Task load (2, 3, 4, etc...)")
 parser.add_argument("--act", required=True,
         type=str, default='sigmoid', help="Activation function (sigmoid, clipped_relu)")
 parser.add_argument("--loss_fn", required=True,
@@ -88,10 +90,12 @@ args = parser.parse_args()
 out_dir = os.path.join(args.output_dir, 'models', args.task.lower())
 if args.apply_dale == False:
     out_dir = os.path.join(out_dir, 'NoDale')
-if len(args.decay_taus) > 1:
-    out_dir = os.path.join(out_dir, 'P_rec_' + str(args.P_rec) + '_Taus_' + str(args.decay_taus[0]) + '_' + str(args.decay_taus[1]))
-else:
-    out_dir = os.path.join(out_dir, 'P_rec_' + str(args.P_rec) + '_Tau_' + str(args.decay_taus[0]))
+if args.task_load > 0:
+    out_dir = os.path.join(out_dir, 'load_' + str(args.task_load))
+# if len(args.decay_taus) > 1:
+#     out_dir = os.path.join(out_dir, 'P_rec_' + str(args.P_rec) + '_Taus_' + str(args.decay_taus[0]) + '_' + str(args.decay_taus[1]))
+# else:
+#     out_dir = os.path.join(out_dir, 'P_rec_' + str(args.P_rec) + '_Tau_' + str(args.decay_taus[0]))
 
 if os.path.exists(out_dir) == False:
     os.makedirs(out_dir)
@@ -144,6 +148,7 @@ elif args.task.lower() == 'letters':
             'DeltaT': 1, # sampling rate
             'taus': args.decay_taus, # decay time-constants (in steps)
             'task': args.task.lower(), # task name
+            'load': args.task_load, # task load
             }
 
 '''
@@ -166,7 +171,8 @@ elif args.task.lower() == 'mante':
 
 # Letters task
 elif args.task.lower() == 'letters':
-    w_in = np.float32(np.random.randn(N, 4))
+    n_input_chans = int(2*args.task_load)
+    w_in = np.float32(np.random.randn(N, n_input_chans))
     w_out = np.float32(np.random.randn(1, N)/100)
 
 '''

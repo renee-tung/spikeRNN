@@ -26,6 +26,9 @@ for i = 1:length(mat_files)
     if strcmpi(task_type, 'xor')
       load(curr_mat, 'stable_perfs', 'tr');
       perf_measure = mean(stable_perfs);
+    elseif strcmpi(task_type, 'letters')
+      load(curr_mat, 'stable_perfs', 'tr');
+      perf_measure = mean(stable_perfs);
     else
       %load(curr_mat, 'all_perfs', 'tr');
       load(curr_mat);

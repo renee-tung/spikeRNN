@@ -331,17 +331,19 @@ def generate_input_stim_letters(settings):
     stim_on = settings['stim_on']
     stim_dur = settings['stim_dur']
     delay = settings['delay']
+    load = settings['load'] # int for number of letters to remember
+    n_input_chans = int(load*2) # num input channels is 2x the load
 
     # Initialize u
-    u = np.zeros((4, T))
+    u = np.zeros((n_input_chans, T))
 
     # letters task
-    letters = np.arange(0, 4, 1) # 0-3, 4 letter choices
-    stim_letters = np.random.choice(letters, 2, replace=False) # 2 letter choices
+    letters = np.arange(0, n_input_chans, 1) # number of input channels 
+    stim_letters = np.random.choice(letters, load, replace=False) # [load] letter choices
     probe_letter = np.random.choice(letters, 1)[0]
 
     u[stim_letters, stim_on:stim_on+stim_dur] = 1 # stimulus presentation
-    u[probe_letter, stim_on+stim_dur+delay:] = 1 # probe presentation
+    u[probe_letter, stim_on+stim_dur+delay:] = 1 # probe presentation (thru end of trial)
     # u[probe_letter, stim_on+stim_dur+delay:stim_on+2*stim_dur+delay] = 1 # probe presentation
 
     if probe_letter in stim_letters:
@@ -527,7 +529,8 @@ def construct_tf(fr_rnn, settings, training_params):
 
     # Letters task
     elif task == 'letters':
-        stim = tf.placeholder(tf.float32, [4, T], name='u')
+        n_input_chans = int(settings['load']*2)
+        stim = tf.placeholder(tf.float32, [n_input_chans, T], name='u')
 
     # Target node
     z = tf.placeholder(tf.float32, [T,], name='target')

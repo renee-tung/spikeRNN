@@ -15,13 +15,14 @@ import pdb
 BEHAVIOR
 '''
 
-def generate_letters_type(T, stim_on, stim_dur, delay, label = 1):
+def generate_letters_type(T, stim_on, stim_dur, delay, load, label = 1):
+    
+    n_input_stim = int(2*load)
+    u = np.zeros((n_input_stim, T))
      
-    u = np.zeros((4, T))
-     
-    letters = np.arange(0, 4, 1) # 0-3, 4 letter choices
-    stim_letters = np.random.choice(letters, 2, replace=False) # 2 letter choices
-    not_stim_letters = np.setdiff1d(letters, stim_letters) # 2 non-stim letter choices
+    letters = np.arange(0, n_input_stim, 1) # 2*load letter choices
+    stim_letters = np.random.choice(letters, load, replace=False) # [load] letter choices
+    not_stim_letters = np.setdiff1d(letters, stim_letters) # half non-stim letter choices
     
     if label == 1:
         probe_letter = np.random.choice(stim_letters, 1)[0]
@@ -86,6 +87,58 @@ def plot_neuron_rates(r, exc_ind, inh_ind, stim_on, stim_dur, delay, sort=1):
 
     return
 
+
+def plot_neuron_raster(spk, exc_ind, inh_ind, stim_on, stim_dur, delay, sort=1):
+    # spk is (neurons x time)
+    # exc_ind and inh_ind are indices of excitatory and inhibitory neurons
+
+    stim1_on = stim_on
+    stim1_off = stim_on + stim_dur
+    stim2_on = stim_on + stim_dur + delay
+    stim2_off = stim_on + 2*stim_dur + delay
+
+    if sort:
+        pca_exc = PCA(n_components=1).fit(spk[exc_ind, :]) # neurons x time (samples x fts)
+        Xnew_exc = pca_exc.transform(spk[exc_ind, :]) # neurons x comp (samples x pcs)
+        sort_idx = np.argsort(Xnew_exc[:,0])
+        exc_ind = exc_ind[sort_idx]
+
+        pca_inh = PCA(n_components=1).fit(spk[inh_ind, :])
+        Xnew_inh = pca_inh.transform(spk[inh_ind, :])
+        sort_idx = np.argsort(Xnew_inh[:,0])
+        inh_ind = inh_ind[sort_idx]
+
+    fig,axs = plt.subplots(1,2,figsize=(16,4))
+    for i, neuron_spikes in enumerate(spk[exc_ind, :]):
+        spike_times = np.where(neuron_spikes == 1)[0]  # Get the indices where the spike is 1
+        axs[0].plot(spike_times, np.ones_like(spike_times) * (i + 1), 'k|', markersize=5)  # 'k|' plots vertical lines
+    axs[0].set_xlabel('time (s)')
+    axs[0].set_ylabel('neurons')
+    axs[0].set_title('excitatory neurons')
+    axs[0].axvline(x=stim1_on, color='r', linestyle='--')
+    axs[0].axvline(x=stim1_off, color='r', linestyle='--')
+    axs[0].axvline(x=stim2_on, color='r', linestyle='--')
+    axs[0].axvline(x=stim2_off, color='r', linestyle='--')
+    axs[0].set_xticks(range(0,spk.shape[1],10000),np.arange(0,spk.shape[1],10000)/20000)
+
+    for i, neuron_spikes in enumerate(spk[inh_ind, :]):
+        spike_times = np.where(neuron_spikes == 1)[0]  # Get the indices where the spike is 1
+        axs[1].plot(spike_times, np.ones_like(spike_times) * (i + 1), 'k|', markersize=5)  # 'k|' plots vertical lines
+    axs[1].set_xlabel('time (s)')
+    axs[1].set_ylabel('neurons')
+    axs[1].set_title('inhibitory neurons')
+    axs[1].axvline(x=stim1_on, color='r', linestyle='--')
+    axs[1].axvline(x=stim1_off, color='r', linestyle='--')
+    axs[1].axvline(x=stim2_on, color='r', linestyle='--')
+    axs[1].axvline(x=stim2_off, color='r', linestyle='--')
+    axs[1].set_xticks(range(0,spk.shape[1],10000),np.arange(0,spk.shape[1],10000)/20000)
+
+    plt.show()
+
+    print(f'{len(exc_ind)} excitatory neurons')
+    print(f'{len(inh_ind)} inhibitory neurons')
+
+    return
 
 '''
 PACs

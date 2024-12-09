@@ -1,0 +1,133 @@
+%% Code to calculate IPSCs, downsample, and save
+
+clear; clc;
+
+current_path = pwd;
+
+task_dir = '/home/nuttidalab/Documents/spikeRNN/models/letters/';
+task_name = 'letters';
+task_loads = [3];
+% task_loads = [2, 3];
+n_neurons = 400;
+% n_neurons = 400;
+
+fs_downsamp = 1000; % downsample IPSCs to 1000Hz
+
+% params for bhv trials
+delay = 10;
+% delay = 50;
+stim_on = 51;
+stim_dur = 100;
+probe_dur = 130;
+response_time = stim_on + stim_dur + delay + 10;
+T = response_time + probe_dur;
+
+% convert to spiking times
+fs_rate = 200; 
+fs_spk = 20000;
+stim_onset = (stim_on)/fs_rate*fs_spk;
+stim_offset = (stim_on + stim_dur)/fs_rate*fs_spk;
+probe_onset = (stim_on + stim_dur + delay)/fs_rate*fs_spk;
+response_onset = (response_time)/fs_rate*fs_spk;
+baseline_onset = round(stim_onset/2);
+T_spk = (T)/fs_rate*fs_spk;
+
+% params for LIF model function
+use_initial_weights = false;
+scaling_factor = opt_scaling_factor;
+down_sample = 1;
+stims = struct();
+stims.mode = 'none'; % For LIF simulation, no stims
+
+for n_load = 1:length(task_loads) % for this load
+    load_str = num2str(task_loads(n_load));
+    load_dir = [task_dir, 'load_', load_str, '/'];
+    wcard = ['*N_',num2str(n_neurons), '*'];
+    % wcard = '*load_*';
+    % max_tr = 10000; % max training trials
+    % perf_threshold = .95;
+    % % perf_threshold = [0.60 0.80];
+    % disp(['PERFORMANCE THRESHOLD SET TO ' num2str(perf_threshold)]);
+    % stable_mods = return_stable(task_dir, wcard, perf_threshold, task_type, max_tr);
+
+    mat_files = dir(fullfile(load_dir, wcard));
+    save_dir = [load_dir, 'IPSCs/'];
+
+
+    for i = 1:length(mat_files) % for this model
+        if ~isfolder(fullfile(load_dir, mat_files(i).name)) & ~isempty(strfind(mat_files(i).name, '.mat'))
+            curr_mat = fullfile(load_dir, mat_files(i).name);
+            load(curr_mat)
+        end
+        disp(mat_files(i).name)
+
+        save_name = [save_dir, 'IPSC_', mat_files(i).name];
+        % check if there are IPSCs calculated already
+        if exist(save_name, 'file') > 0
+            disp('IPSCs already calculated, moving to next model...')
+            continue
+        end
+
+        % input stim info
+        load = task_loads(n_load);
+        n_input_chans = 2*load;
+        
+        n_trials = 30; % n_trials per probe letter
+        perf = zeros(n_input_chans, n_trials);
+        labels = zeros(n_input_chans, n_trials);
+
+
+        % generate equal number of trials per probe
+        for probe_letter = 1:n_input_chans
+            [u,label] = generate_letters_stim(T, stim_on, stim_dur, delay, ...
+                load, probe_letter);
+            ipscs_temp = zeros(n_trials, T_spk);
+            for n_trial = 1:n_trials
+    
+                [~, ~, ~, ~, ~, out, params] = LIF_network_fnc(curr_mat, opt_scaling_factor,...
+                    u, stims, down_sample, use_initial_weights);
+    
+                if label == 1
+                    if max(out(response_time*100:end)) > 0.7
+                        perf(probe_letter, n_trial) = 1;
+                    end
+                elseif label == -1
+                    if min(out(response_time*100:end)) < -0.7
+                        perf(probe_letter, n_trial) = 1;
+                    end
+                end
+                labels(probe_letter, n_trial) = label;
+                ipscs_temp(n_trial, :) = params.IPSCs; % temp store all IPSCs from trials w this probe
+
+                if normalize_ipscs
+                    if i==1
+                        disp('normalizing IPSCs...')
+                    end
+                    ipscs_mean = mean(ipscs_temp(:,baseline_onset:stim_onset),2);
+                    ipscs_std = std(ipscs_temp(:,baseline_onset:stim_onset),0, 2);
+                    if ipscs_std ~= 0
+                        ipscs_temp = (ipscs_temp-ipscs_mean)./ipscs_std; % zscore by baseline period
+                    end
+                end
+                if any(isnan(ipscs_temp))
+                    disp('there are nans')
+                end
+                
+                % now downsample to fs_downsamp
+
+            end
+
+            
+            
+            
+            clear params
+
+
+        end
+
+
+
+
+
+    end
+end

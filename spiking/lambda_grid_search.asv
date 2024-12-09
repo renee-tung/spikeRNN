@@ -306,14 +306,9 @@ for i = 1:length(mat_files)
       end % parfor end
       all_perfs(k) = mean(perfs);
 
-% subplot(3, 4, k); hold on;
-% plot(outs(trials == 1,:)', 'Color', [1, 0, 0, 0.5]); 
-% plot(outs(trials == -1,:)', 'Color', [0, 0, 1, 0.5]); 
-% title(['scaling factor ', num2str(scaling_factors(k))])
+subplot(3, 4, ); plot(outs'); title(['scaling factor ', num2str(scaling_factors(k))])
 
     end % scaling end
-% sgtitle(['task load 3, model with 200 neurons (good), optimal scaling factor: ', num2str(opt_scaling_factor)])
-
     [v, ind] = max(all_perfs);
     [v, scaling_factors(ind)]
 
