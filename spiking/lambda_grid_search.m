@@ -26,7 +26,7 @@
 clear; clc;
 
 % Directory containing all the trained rate RNN model .mat files
-task_load = 3;
+task_load = 2;
 
 model_dir = ['/home/nuttidalab/Documents/spikeRNN/models/letters/load_', num2str(task_load), '/'];
 
@@ -260,7 +260,7 @@ for i = 1:length(mat_files)
     down_sample = 1;
     all_perfs = zeros(length(scaling_factors), 1);
     
-    figure;
+    % figure;
     for k = 1:length(scaling_factors)
       outs = zeros(n_trials, 30000);
       trials = zeros(n_trials, 1);

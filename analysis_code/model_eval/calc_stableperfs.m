@@ -6,7 +6,7 @@
 clear; clc;
 
 % Directory containing all the trained rate RNN model .mat files
-task_load = 3;
+task_load = 2;
 model_dir = ['/home/nuttidalab/Documents/spikeRNN/models/letters/load_', num2str(task_load), '/'];
 
 mat_files = dir(fullfile(model_dir, '*.mat'));
@@ -21,7 +21,6 @@ n_trials = 100;
 
 % Set the delay for the model eval
 delay = 50;
-% delay = 10;
 
 % Grid search
 for i = 1:length(mat_files)
@@ -102,7 +101,6 @@ for i = 1:length(mat_files)
         % Save the perfs
         disp(mean(stable_perfs))
         spike_perf_mean = mean(stable_perfs);
-        % save(curr_full, 'spike_perf_mean', '-append');
         save(curr_full, 'stable_perfs', '-append');   
         clearvars -except model_dir mat_files n_trials use_initial_weights task_load delay
     else

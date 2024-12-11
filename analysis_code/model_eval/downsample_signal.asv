@@ -1,0 +1,11 @@
+function [signal_low] = downsample_signal(fs_high, fs_low, signal)
+
+
+% Time vector for high sampling rate
+t_high = 0:1/fs_high:1-1/fs_high;
+
+% Create a new time vector for the low sampling rate
+t_low = 0:1/fs_low:1-1/fs_low;  % Time vector for low sampling rate (same duration)
+
+% Resample the signal by interpolating at the new time points
+signal_low = interp1(t_high, signal, t_low, 'linear');  % Linear interpolation

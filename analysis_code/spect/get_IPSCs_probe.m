@@ -11,6 +11,8 @@ task_loads = [3];
 n_neurons = 400;
 % n_neurons = 400;
 
+normalize_ipscs = true;
+
 fs_downsamp = 1000; % downsample IPSCs to 1000Hz
 
 % params for bhv trials
@@ -30,7 +32,7 @@ stim_offset = (stim_on + stim_dur)/fs_rate*fs_spk;
 probe_onset = (stim_on + stim_dur + delay)/fs_rate*fs_spk;
 response_onset = (response_time)/fs_rate*fs_spk;
 baseline_onset = round(stim_onset/2);
-T_spk = (T)/fs_rate*fs_spk;
+T_spk = round((T)/fs_rate*fs_spk);
 
 % params for LIF model function
 use_initial_weights = false;
@@ -38,6 +40,8 @@ scaling_factor = opt_scaling_factor;
 down_sample = 1;
 stims = struct();
 stims.mode = 'none'; % For LIF simulation, no stims
+
+T_ds = T_spk/fs_spk*fs_downsamp;
 
 for n_load = 1:length(task_loads) % for this load
     load_str = num2str(task_loads(n_load));
@@ -77,15 +81,17 @@ for n_load = 1:length(task_loads) % for this load
         labels = zeros(n_input_chans, n_trials);
 
 
-        % generate equal number of trials per probe
+        % generate equal number of trials per probe letter
+        stim_letters_all = zeros(n_input_chans, n_trials, n_load);
+        ipscs_all = zeros(n_input_chans, n_trials, n_neurons, T_ds);
         for probe_letter = 1:n_input_chans
-            [u,label] = generate_letters_stim(T, stim_on, stim_dur, delay, ...
-                load, probe_letter);
-            ipscs_temp = zeros(n_trials, T_spk);
             for n_trial = 1:n_trials
-    
+                [u,label,stim_letters] = generate_letters_stim(T, stim_on, stim_dur, delay, ...
+                    load, probe_letter);
                 [~, ~, ~, ~, ~, out, params] = LIF_network_fnc(curr_mat, opt_scaling_factor,...
                     u, stims, down_sample, use_initial_weights);
+                
+                stim_letters_all(probe_letter, n_trial, :) = stim_letters;
     
                 if label == 1
                     if max(out(response_time*100:end)) > 0.7
@@ -97,7 +103,7 @@ for n_load = 1:length(task_loads) % for this load
                     end
                 end
                 labels(probe_letter, n_trial) = label;
-                ipscs_temp(n_trial, :) = params.IPSCs; % temp store all IPSCs from trials w this probe
+                ipscs_temp = params.IPSCs; % temp store all IPSCs from trials w this probe
 
                 if normalize_ipscs
                     if i==1
@@ -114,13 +120,10 @@ for n_load = 1:length(task_loads) % for this load
                 end
                 
                 % now downsample to fs_downsamp
+                ipscs_all(probe_letter, n_trial, :, :) = downsample_signal(T_spk, T_spk/fs_spk*fs_downsamp, ipscs_temp);
+                clear ipscs_temp params
 
             end
-
-            
-            
-            
-            clear params
 
 
         end

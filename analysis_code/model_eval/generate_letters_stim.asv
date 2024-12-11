@@ -1,4 +1,4 @@
-function [u,label, stim_letters, probe_letter] = generate_letters_stim(T, stim_on, stim_dur, delay, task_load, probe_letter, match)
+function [u,label, stim_letters] = generate_letters_stim(T, stim_on, stim_dur, delay, task_load, probe_letter, match)
 % generates letters task stimulus with specified probe letter
 % for random stim, put probe_letter = NaN
 % for random match or not, put match=NaN. Otherwise put true or false
@@ -16,16 +16,9 @@ end
 label = 2*(ismember(probe_letter, stim_letters)) - 1;
 
 if ~isnan(match) % if we want to choose match or not
-
     if (match == true) && (label == -1) % if we want match and it's not
-        stim_letters(1) = probe_letter;
-        label = 2*(ismember(probe_letter, stim_letters)) - 1;
-        assert(label == 1, 'Wanted match, but trial does not match')
-    elseif (match == false) && (label == 1) % if we want mismatch and it's match
-        new_stim = setdiff(1:n_input_chans, stim_letters);
-        stim_letters(stim_letters == probe_letter) = new_stim(randi(length(new_stim)));
-        label = 2*(ismember(probe_letter, stim_letters)) - 1;
-        assert(label == -1, 'Wanted mismatch, but trial matches')
+        
+
     end
 end
 

@@ -7,8 +7,10 @@ current_path = pwd;
 
 task_dir = '/home/nuttidalab/Documents/spikeRNN/models/letters/';
 task_type = 'letters';
+% task_loads = [3];
 task_loads = [2, 3]; 
-n_neurons = 200;
+% n_neurons = 200;
+n_neurons = 400;
 
 for n_load = 1:length(task_loads)
     load_str = num2str(task_loads(n_load));
@@ -38,103 +40,66 @@ for n_load = 1:length(task_loads)
         tr_total(i,:) = tr;
       end
     end
-    
-    % figure; hold on; 
-    % histogram(perf_spike_50, 100)
-    % hold on; xlabel('Spiking Model eval performance on delay=50')
-    % ylabel('Spiking Model count')
-    % title(['Spiking Model Eval Performance (delay=50) for load ',load_str])
-    % xlim([0 1]);
-    % 
-    % figure; hold on; 
-    % histogram(perf_train, 100)
-    % hold on; xlabel('Rate Model train performance on delay=10')
-    % ylabel('Rate Model count')
-    % title(['Rate Model Training Performance (delay=10) for load ',load_str])
-    % xlim([0 1]);
-    % 
-    % figure; hold on; 
-    % histogram(perf_spike_10, 100)
-    % hold on; xlabel('Spiking Model performance on delay=10')
-    % ylabel('Spiking Model count')
-    % title(['Spiking Model Performance (delay=10) for load ',load_str])
-    % xlim([0 1]);
-    % 
-    % figure; hold on; 
-    % histogram(tr_total, 100)
-    % hold on; xlabel('Model train trial total')
-    % ylabel('Model count')
-    % title(['Model Number of Training Trials for load ', load_str])
-    % % xlim([0 1]);
-    % 
-    % figure; hold on;
-    % scatter(tr_total, perf_spike_50);
-    % xlabel('Number of training trials');
-    % ylabel('Spiking Model eval performance on delay=50')
-    % title(['Eval performance (delay=50) by training trials for load ', load_str]);
-    % 
-    % figure; hold on;
-    % scatter(perf_train, perf_spike_50);
-    % xlabel('Rate Model training performance on delay=10');
-    % ylabel('Spiking Model eval performance on delay=50')
-    % title(['Spiking eval performance (delay=50) by Rate training performance for load ', load_str]);
-    % xlim([.5 1]);
-    % ylim([.5 1]);
-    % 
-    % figure; hold on;
-    % scatter(perf_spike_10, perf_spike_50);
-    % xlabel('Spiking Model eval performance on delay=10');
-    % ylabel('Spiking Model eval performance on delay=50')
-    % title(['Spiking eval performance (delay=50) by (delay=10) for load ', load_str]);
-    % xlim([.5 1]);
-    % ylim([.5 1]);
-    % plot([0,1], [0,1])
-    % axis square
 
     figure; hold on; 
-    histogram(perf_spike_50, 100)
+    subplot(1, 3, 1)
+    histogram(perf_spike_50(perf_train > .95), 100)
     hold on; xlabel('Spiking Model eval performance on delay=50')
     ylabel('Spiking Model count')
     title(['Spiking Model Eval Performance (delay=50) for load ',load_str])
     xlim([0 1]);
     
-    figure; hold on; 
-    histogram(perf_train, 100)
-    hold on; xlabel('Rate Model train performance on delay=10')
+    subplot(1, 3, 2); hold on; 
+    histogram(perf_train(perf_train > .95), 100)
+    xlabel('Rate Model train performance on delay=10')
     ylabel('Rate Model count')
     title(['Rate Model Training Performance (delay=10) for load ',load_str])
     xlim([0 1]);
 
-    figure; hold on; 
-    histogram(perf_spike_10, 100)
-    hold on; xlabel('Spiking Model performance on delay=10')
+    subplot(1, 3, 3); hold on; 
+    histogram(perf_spike_10(perf_train > .95), 100)
+    xlabel('Spiking Model performance on delay=10')
     ylabel('Spiking Model count')
     title(['Spiking Model Performance (delay=10) for load ',load_str])
     xlim([0 1]);
 
-    figure; hold on; 
-    histogram(tr_total, 100)
+    figure;
+    subplot(1,2,1); hold on;
+    histogram(tr_total(perf_train > .95), 100)
     hold on; xlabel('Model train trial total')
     ylabel('Model count')
     title(['Model Number of Training Trials for load ', load_str])
     % xlim([0 1]);
     
-    figure; hold on;
-    scatter(tr_total, perf_spike_50);
+    subplot(1,2,2); hold on;
+    scatter(tr_total(perf_train > .95), perf_spike_50(perf_train > .95));
     xlabel('Number of training trials');
     ylabel('Spiking Model eval performance on delay=50')
     title(['Eval performance (delay=50) by training trials for load ', load_str]);
 
-    figure; hold on;
-    scatter(perf_train, perf_spike_50);
+    figure;
+    subplot(1,3,1); hold on;
+    scatter(perf_train(perf_train > .95), perf_spike_50(perf_train > .95));
     xlabel('Rate Model training performance on delay=10');
     ylabel('Spiking Model eval performance on delay=50')
     title(['Spiking eval performance (delay=50) by Rate training performance for load ', load_str]);
     xlim([.5 1]);
     ylim([.5 1]);
+    plot([0,1], [0,1])
+    axis square
 
-    figure; hold on;
-    scatter(perf_spike_10, perf_spike_50);
+    subplot(1,3,2); hold on;
+    scatter(perf_train(perf_train > .95), perf_spike_10(perf_train > .95));
+    xlabel('Rate Model training performance on delay=10');
+    ylabel('Spiking Model eval performance on delay=10')
+    title(['Spiking eval performance (delay=10) by Rate training performance for load ', load_str]);
+    xlim([.85 1]);
+    ylim([.85 1]);
+    plot([0,1], [0,1])
+    axis square
+
+    subplot(1,3,3); hold on;
+    scatter(perf_spike_10(perf_train > .95), perf_spike_50(perf_train > .95));
     xlabel('Spiking Model eval performance on delay=10');
     ylabel('Spiking Model eval performance on delay=50')
     title(['Spiking eval performance (delay=50) by (delay=10) for load ', load_str]);
