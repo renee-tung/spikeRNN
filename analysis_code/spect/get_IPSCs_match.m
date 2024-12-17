@@ -33,7 +33,7 @@ stim_onset = (stim_on)/fs_rate*fs_spk;
 stim_offset = (stim_on + stim_dur)/fs_rate*fs_spk;
 probe_onset = (stim_on + stim_dur + delay)/fs_rate*fs_spk;
 response_onset = (response_time)/fs_rate*fs_spk;
-baseline_onset = round(stim_onset/2);
+baseline_onset = round(stim_onset/4); % baseline start time
 T_spk = round((T)/fs_rate*fs_spk);
 
 T_ds = T_spk/fs_spk*fs_downsamp;
@@ -56,7 +56,7 @@ for n_load = 1:length(task_loads) % for this load
     for i = 1:length(mat_files) % for this model
         if ~isfolder(fullfile(load_dir, mat_files(i).name)) & ~isempty(strfind(mat_files(i).name, '.mat'))
             curr_mat = fullfile(load_dir, mat_files(i).name);
-            load(curr_mat)
+            load(curr_mat);
         end
         disp(mat_files(i).name)
 
@@ -68,8 +68,8 @@ for n_load = 1:length(task_loads) % for this load
         end
 
         % input stim info
-        load = task_loads(n_load);
-        n_input_chans = 2*load;
+        task_load = task_loads(n_load);
+        n_input_chans = 2*task_load;
 
         % params for LIF model function
         use_initial_weights = false;
@@ -94,10 +94,12 @@ for n_load = 1:length(task_loads) % for this load
             end
 
             [u,label,stim_letters, probe_letter] = generate_letters_stim(T, stim_on, stim_dur, delay, ...
-                load, probe_letter, match);
+                task_load, probe_letter, match);
 
             [~, ~, ~, ~, ~, out, params] = LIF_network_fnc(curr_mat, opt_scaling_factor,...
                 u, stims, down_sample, use_initial_weights);
+
+            out = smoothdata(squeeze(out), "gaussian", 5000); % adding line to smooth outputs
 
             stim_letters_all(n_trial, :) = stim_letters;
             probe_letters_all(n_trial) = probe_letter;
@@ -136,10 +138,58 @@ for n_load = 1:length(task_loads) % for this load
         ipscs_match = squeeze(mean(ipscs_all(labels == 1,:,:),1));
         disp(['Match trials: n=', num2str(sum(labels==1)), ', mean performance: ', num2str(mean(perf(labels==1)))])
 
-        ipscs_mismatch = squeeze(mean(ipscs_all(labels == -1)));
+        ipscs_mismatch = squeeze(mean(ipscs_all(labels == -1,:,:),1));
         disp(['Mismatch trials: n=', num2str(sum(labels==-1)), ', mean performance: ', num2str(mean(perf(labels==-1)))])
 
-        save(savename, ipscs_match, ipscs_mismatch, perf, labels, stim_letters_all, probe_letters_all)
+        save(save_name, 'ipscs_match', 'ipscs_mismatch', 'perf', 'labels', 'stim_letters_all', 'probe_letters_all', ...
+            'delay','stim_on','stim_dur','probe_dur','T')
 
+    end
+end
+
+%% adding in trial info to files i forgot to save that for...
+
+clear; clc;
+
+current_path = pwd;
+
+task_dir = '/home/nuttidalab/Documents/spikeRNN/models/letters/';
+task_name = 'letters';
+% task_loads = [3];
+task_loads = [2, 3];
+n_neurons = 400;
+% n_neurons = 400;
+
+normalize_ipscs = true;
+
+fs_downsamp = 1000; % downsample IPSCs to 1000Hz
+
+% params for bhv trials
+% delay = 10;
+delay = 50;
+stim_on = 51;
+stim_dur = 100;
+probe_dur = 130;
+response_time = stim_on + stim_dur + delay + 10;
+T = response_time + probe_dur;
+
+for n_load = 1:length(task_loads) % for this load
+    load_str = num2str(task_loads(n_load));
+    load_dir = [task_dir, 'load_', load_str, '/'];
+    wcard = ['*N_',num2str(n_neurons), '*'];
+    % wcard = '*load_*';
+    % max_tr = 10000; % max training trials
+    % perf_threshold = .95;
+    % % perf_threshold = [0.60 0.80];
+    % disp(['PERFORMANCE THRESHOLD SET TO ' num2str(perf_threshold)]);
+    % stable_mods = return_stable(task_dir, wcard, perf_threshold, task_type, max_tr);
+
+    mat_files = dir(fullfile(load_dir, wcard));
+    save_dir = [load_dir, 'IPSCs/'];
+
+
+    for i = 1:length(mat_files) % for this model
+        save_name = [save_dir, 'IPSC_match_delay', num2str(delay),'_',mat_files(i).name];
+        save(save_name, 'delay','stim_on','stim_dur','probe_dur','T', '-append')
     end
 end

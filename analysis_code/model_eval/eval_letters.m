@@ -1,5 +1,14 @@
 %% Code for evaluating trained models on letters task
 
+% Subsections include:
+     % Plotting model performance
+     % Plotting model outputs
+
+%% Plot model performance
+
+% Run calc_stableperfs.m and calc_spikeperfmean.m before this
+% This plots the model training acc (delay=10), spike acc (delay=10), and
+% spike stable acc (delay=50). 
 
 clear; clc;
 
@@ -12,6 +21,11 @@ task_loads = [2, 3];
 % n_neurons = 200;
 n_neurons = 400;
 
+rate_10 = {};
+spike_10 = {};
+spike_50 = {};
+spike_10_smooth = {};
+spike_50_smooth = {};
 for n_load = 1:length(task_loads)
     load_str = num2str(task_loads(n_load));
     load_dir = [task_dir, 'load_', load_str, '/'];
@@ -28,78 +42,81 @@ for n_load = 1:length(task_loads)
     perf_spike_50 = zeros(length(mat_files),1);
     perf_train = zeros(length(mat_files), 1);
     perf_spike_10 = zeros(length(mat_files), 1);
+    perf_spike_smooth_50 = zeros(length(mat_files),1);
+    perf_spike_smooth_10 = zeros(length(mat_files),1);
     tr_total  = zeros(length(mat_files),1);
     for i = 1:length(mat_files)
       if ~isfolder(fullfile(load_dir, mat_files(i).name)) & ~isempty(strfind(mat_files(i).name, '.mat'))
         curr_mat = fullfile(load_dir, mat_files(i).name);
     
         load(curr_mat, 'stable_perfs', 'eval_perf_mean', 'spike_perf_mean', 'tr');
+        load(curr_mat, 'stable_perfs_smooth', 'spike_perf_mean_smooth')
         perf_spike_50(i,:) = mean(stable_perfs);
         perf_train(i,:) = eval_perf_mean;
         perf_spike_10(i,:) = spike_perf_mean;
+        perf_spike_smooth_10(i,:) = spike_perf_mean_smooth;
+        perf_spike_smooth_50(i,:) = stable_perfs_smooth;
         tr_total(i,:) = tr;
       end
     end
-
-    figure; hold on; 
-    subplot(1, 3, 3)
-    histogram(perf_spike_50(perf_train > .95), 100)
-    hold on; xlabel('Spiking Model eval performance on delay=50')
-    ylabel('Spiking Model count')
-    title(['Spiking Model Eval Performance (delay=50) for load ',load_str])
-    xlim([0 1]);
     
-    subplot(1, 3, 1); hold on; 
-    histogram(perf_train(perf_train > .95), 100)
-    xlabel('Rate Model train performance on delay=10')
-    ylabel('Rate Model count')
-    title(['Rate Model Training Performance (delay=10) for load ',load_str])
-    xlim([0 1]);
+    
+    rate_10{end+1} = perf_train;
+    spike_10{end+1} = perf_spike_10;
+    spike_50{end+1} = perf_spike_50;
+    spike_10_smooth{end+1} = perf_spike_smooth_10;
+    spike_50_smooth{end+1} = perf_spike_smooth_50;
 
-    subplot(1, 3, 2); hold on; 
-    histogram(perf_spike_10(perf_train > .95), 100)
-    xlabel('Spiking Model performance on delay=10')
-    ylabel('Spiking Model count')
-    title(['Spiking Model Performance (delay=10) for load ',load_str])
-    xlim([0 1]);
 
-    figure;
-    subplot(1,2,1); hold on;
-    histogram(tr_total(perf_train > .95), 100)
-    hold on; xlabel('Model train trial total')
-    ylabel('Model count')
-    title(['Model Number of Training Trials for load ', load_str])
+
+    % figure; hold on; 
+    % subplot(1, 3, 3)
+    % histogram(perf_spike_50(perf_train > .95), 100)
+    % hold on; xlabel('Spiking Model eval performance on delay=50')
+    % ylabel('Spiking Model count')
+    % title(['Spiking Model Eval Performance (delay=50) for load ',load_str])
     % xlim([0 1]);
-    
-    subplot(1,2,2); hold on;
-    scatter(tr_total(perf_train > .95), perf_spike_50(perf_train > .95));
-    xlabel('Number of training trials');
-    ylabel('Spiking Model eval performance on delay=50')
-    title(['Eval performance (delay=50) by training trials for load ', load_str]);
+    % 
+    % subplot(1, 3, 1); hold on; 
+    % histogram(perf_train(perf_train > .95), 100)
+    % xlabel('Rate Model train performance on delay=10')
+    % ylabel('Rate Model count')
+    % title(['Rate Model Training Performance (delay=10) for load ',load_str])
+    % xlim([0 1]);
+    % 
+    % subplot(1, 3, 2); hold on; 
+    % histogram(perf_spike_10(perf_train > .95), 100)
+    % xlabel('Spiking Model performance on delay=10')
+    % ylabel('Spiking Model count')
+    % title(['Spiking Model Performance (delay=10) for load ',load_str])
+    % xlim([0 1]);
+
+    % figure;
+    % subplot(1,2,1); hold on;
+    % histogram(tr_total(perf_train > .95), 100)
+    % hold on; xlabel('Model train trial total')
+    % ylabel('Model count')
+    % title(['Model Number of Training Trials for load ', load_str])
+    % 
+    % subplot(1,2,2); hold on;
+    % scatter(tr_total(perf_train > .95), perf_spike_50(perf_train > .95));
+    % xlabel('Number of training trials');
+    % ylabel('Spiking Model eval performance on delay=50')
+    % title(['Eval performance (delay=50) by training trials for load ', load_str]);
 
     figure;
-    subplot(1,3,3); hold on;
-    scatter(perf_train(perf_train > .95), perf_spike_50(perf_train > .95));
+    subplot(1,3,1); hold on;
+    scatter(perf_train, perf_spike_10);
     xlabel('Rate Model training performance on delay=10');
-    ylabel('Spiking Model eval performance on delay=50')
-    title(['Spiking eval performance (delay=50) by Rate training performance for load ', load_str]);
+    ylabel('Spiking Model eval performance on delay=10')
+    title(['Spiking eval performance (delay=10) by Rate training performance for load ', load_str]);
     xlim([.5 1]);
     ylim([.5 1]);
     plot([0,1], [0,1])
     axis square
 
-    subplot(1,3,1); hold on;
-    scatter(perf_train(perf_train > .95), perf_spike_10(perf_train > .95));
-    xlabel('Rate Model training performance on delay=10');
-    ylabel('Spiking Model eval performance on delay=10')
-    title(['Spiking eval performance (delay=10) by Rate training performance for load ', load_str]);
-    xlim([.85 1]);
-    ylim([.85 1]);
-    plot([0,1], [0,1])
-    axis square
-
     subplot(1,3,2); hold on;
-    scatter(perf_spike_10(perf_train > .95), perf_spike_50(perf_train > .95));
+    scatter(perf_spike_10, perf_spike_50);
     xlabel('Spiking Model eval performance on delay=10');
     ylabel('Spiking Model eval performance on delay=50')
     title(['Spiking eval performance (delay=50) by (delay=10) for load ', load_str]);
@@ -108,5 +125,584 @@ for n_load = 1:length(task_loads)
     plot([0,1], [0,1])
     axis square
 
+    subplot(1,3,3); hold on;
+    scatter(perf_train, perf_spike_50);
+    xlabel('Rate Model training performance on delay=10');
+    ylabel('Spiking Model eval performance on delay=50')
+    title(['Spiking eval performance (delay=50) by Rate training performance for load ', load_str]);
+    xlim([.5 1]);
+    ylim([.5 1]);
+    plot([0,1], [0,1])
+    axis square
+
+
+    figure;
+    subplot(1,3,1); hold on;
+    scatter(perf_train, perf_spike_smooth_10);
+    xlabel('Rate Model training performance on delay=10');
+    ylabel('Spiking Model eval smoothed performance on delay=10')
+    title(['Spiking eval smoothed performance (delay=10) by Rate training performance for load ', load_str]);
+    xlim([.5 1]);
+    ylim([.5 1]);
+    plot([0,1], [0,1])
+    axis square
+
+    subplot(1,3,2); hold on;
+    scatter(perf_spike_smooth_10, perf_spike_smooth_50);
+    xlabel('Spiking Model eval smoothed performance on delay=10');
+    ylabel('Spiking Model eval smoothed performance on delay=50')
+    title(['Spiking smoothed eval performance (delay=50) by (delay=10) for load ', load_str]);
+    xlim([.5 1]);
+    ylim([.5 1]);
+    plot([0,1], [0,1])
+    axis square
+
+    subplot(1,3,3); hold on;
+    scatter(perf_train, perf_spike_smooth_50);
+    xlabel('Rate Model training performance on delay=10');
+    ylabel('Spiking Model smooothed eval performance on delay=50')
+    title(['Spiking smooothed eval performance (delay=50) by Rate training performance for load ', load_str]);
+    xlim([.5 1]);
+    ylim([.5 1]);
+    plot([0,1], [0,1])
+    axis square
 
 end
+
+
+
+% paired boxplots (not smoothing)
+% Combine the data into a matrix (each column is a set of values)
+data = [rate_10{1}, rate_10{2}, spike_10{1}, spike_10{2}, spike_50{1}, spike_50{2}];
+
+% Create paired boxplot with specific positioning
+positions = [1, 2, 4, 5, 7, 8];  % Define positions for each pair of sets
+
+% Create boxplot with custom positions
+figure; hold on;
+boxplot(data, 'Positions', positions(:), 'Colors', 'br', 'Whisker', 1.5, 'Notch', 'on', ...
+    'Labels', {'Load 2: Rate, delay=10', 'Load 3: Rate, delay=10', ...
+    'Load 2: Spike, delay=10', 'Load 3: Spike, delay=10', 'Load 2: Spike, delay=50', 'Load 3: Spike, delay=50'});
+xlabel('Model type')
+
+% Set title and axis labels
+title('Model Performance');
+ylabel('Performance accuracy');
+ylim([0.5, 1])
+
+
+% paired boxplots (smoothing)
+% Combine the data into a matrix (each column is a set of values)
+data = [rate_10{1}, rate_10{2}, spike_10_smooth{1}, spike_10_smooth{2}, spike_50_smooth{1}, spike_50_smooth{2}];
+
+% Create paired boxplot with specific positioning
+positions = [1, 2, 4, 5, 7, 8];  % Define positions for each pair of sets
+
+% Create boxplot with custom positions
+figure; hold on;
+boxplot(data, 'Positions', positions(:), 'Colors', 'br', 'Whisker', 1.5, 'Notch', 'on', ...
+    'Labels', {'Load 2: Rate, delay=10', 'Load 3: Rate, delay=10', ...
+    'Load 2: Spike smooth, delay=10', 'Load 3: Spike smooth, delay=10', ...
+    'Load 2: Spike smooth, delay=50', 'Load 3: Spike smooth, delay=50'});
+xlabel('Model type')
+
+% Set title and axis labels
+title('Model Performance');
+ylabel('Performance accuracy');
+ylim([0.5, 1])
+
+
+%% Plot some model outputs
+
+% Plots example output for 12 spiking models, for delay=10 and delay=50
+
+
+clear; clc;
+
+current_path = pwd;
+
+task_dir = '/home/nuttidalab/Documents/spikeRNN/models/letters/';
+task_type = 'letters';
+task_loads = [3];
+% task_loads = [2, 3];
+% n_neurons = 200;
+n_neurons = 400;
+
+delay=10;
+
+for n_load = 1:length(task_loads)
+    task_load = task_loads(n_load);
+    load_str = num2str(task_load);
+    load_dir = [task_dir, 'load_', load_str, '/'];
+    wcard = ['*N_',num2str(n_neurons), '*'];
+    % wcard = '*load_*';
+    % max_tr = 10000; % max training trials
+    % perf_threshold = .95;
+    % % perf_threshold = [0.60 0.80];
+    % disp(['PERFORMANCE THRESHOLD SET TO ' num2str(perf_threshold)]);
+    % stable_mods = return_stable(task_dir, wcard, perf_threshold, task_type, max_tr);
+
+    mat_files = dir(fullfile(load_dir, wcard));
+    
+    figure;
+    for i = 1:12 %length(mat_files)
+        if ~isfolder(fullfile(load_dir, mat_files(i).name)) & ~isempty(strfind(mat_files(i).name, '.mat'))
+            curr_mat = fullfile(load_dir, mat_files(i).name);
+        end
+
+        load(curr_mat);
+
+        % generate trials and plot outputs
+        n_trials = 100;
+        down_sample = 1;
+        use_initial_weights = false; 
+
+        stim_on = 51;
+        stim_dur = 100;
+        stim2_dur = 130;
+        probe_on = stim_on + stim_dur + delay;
+        response_time = stim_on + stim_dur + delay + 10;
+        T = response_time + stim2_dur;
+
+        trials = zeros(n_trials, 1);
+        stable_perfs = zeros(n_trials, 1);
+        outs = zeros(n_trials, (T-1)*100);
+
+        n_input_chans = task_load*2;
+
+        parfor j = 1:n_trials
+            u = zeros(n_input_chans, T);
+            u_lab = zeros(1, 2);
+
+            letters = 1:n_input_chans; % load*2 letter choices
+            stim_letters = randperm(n_input_chans, task_load); % load letter choices
+            probe_letter = randperm(n_input_chans, 1); % 1 letter choice
+
+            u(stim_letters, stim_on:stim_on+stim_dur) = 1; % stimulus presentation
+            u(probe_letter, stim_on+stim_dur+delay:end) = 1; % probe presentation
+
+            label = 2*(ismember(probe_letter, stim_letters)) - 1;
+            trials(j) = label;
+
+            stims = struct();
+            stims.mode = 'none';
+            [~, ~, spk, rs, all_fr, out, params] = LIF_network_fnc(curr_mat, opt_scaling_factor_smooth,...
+                u, stims, down_sample, use_initial_weights);
+
+            % out = smoothdata(squeeze(out), "gaussian", 5000);
+
+            outs(j,:) = out;
+
+            if label == 1
+                if max(out(response_time*100:end)) > 0.7
+                    stable_perfs(j) = 1;
+                end
+            elseif label == -1
+                if min(out(response_time*100:end)) < -0.7
+                    stable_perfs(j) = 1;
+                end
+            end
+
+        end % parfor end
+
+        % Performance
+        spike_perf_mean = mean(stable_perfs);
+
+        subplot(3, 4, i); hold on;
+        plot(outs(trials == 1,:)', 'Color', [1, 0, 0, 0.3]);
+        plot(mean(outs(trials == 1,:),1), 'Color', [1,1,1,1], 'LineWidth', 3);
+        plot(outs(trials == -1,:)', 'Color', [0, 0, 1, 0.3]);
+        plot(mean(outs(trials == -1,:),1), 'Color', [1,1,1,1], 'LineWidth', 3);
+        xline(stim_on*100, 'Color', 'y', 'LineWidth', 3)
+        xline((stim_on+stim_dur)*100, 'Color', 'y', 'LineWidth', 3)
+        xline(probe_on*100, 'Color', 'y', 'LineWidth', 3)
+        
+        ylim([-2, 2]);
+        title(['model ', num2str(i) ,': ', num2str(spike_perf_mean, 2)])
+
+    end
+
+    sgtitle(['task load ', num2str(task_load), ', N=', num2str(n_neurons), ' neurons, delay=', num2str(delay)])
+
+end
+
+%% Plot some model outputs, gaussian smoothing
+
+% Plots example output for 12 spiking models, for delay=10 and delay=50
+
+
+clear; clc;
+
+current_path = pwd;
+
+task_dir = '/home/nuttidalab/Documents/spikeRNN/models/letters/';
+task_type = 'letters';
+% task_loads = [3];
+task_loads = [2, 3];
+% n_neurons = 200;
+n_neurons = 400;
+
+delay=10;
+
+for n_load = 1:length(task_loads)
+    task_load = task_loads(n_load);
+    load_str = num2str(task_load);
+    load_dir = [task_dir, 'load_', load_str, '/'];
+    wcard = ['*N_',num2str(n_neurons), '*'];
+    % wcard = '*load_*';
+    % max_tr = 10000; % max training trials
+    % perf_threshold = .95;
+    % % perf_threshold = [0.60 0.80];
+    % disp(['PERFORMANCE THRESHOLD SET TO ' num2str(perf_threshold)]);
+    % stable_mods = return_stable(task_dir, wcard, perf_threshold, task_type, max_tr);
+
+    mat_files = dir(fullfile(load_dir, wcard));
+    
+    figure;
+    for i = 1:12 %length(mat_files)
+        if ~isfolder(fullfile(load_dir, mat_files(i).name)) & ~isempty(strfind(mat_files(i).name, '.mat'))
+            curr_mat = fullfile(load_dir, mat_files(i).name);
+        end
+
+        load(curr_mat);
+
+        % generate trials and plot outputs
+        n_trials = 100;
+        down_sample = 1;
+        use_initial_weights = false; 
+
+        stim_on = 51;
+        stim_dur = 100;
+        stim2_dur = 130;
+        probe_on = stim_on + stim_dur + delay;
+        response_time = stim_on + stim_dur + delay + 10;
+        T = response_time + stim2_dur;
+
+        trials = zeros(n_trials, 1);
+        stable_perfs = zeros(n_trials, 1);
+        outs = zeros(n_trials, (T-1)*100);
+
+        n_input_chans = task_load*2;
+
+        parfor j = 1:n_trials
+            u = zeros(n_input_chans, T);
+            u_lab = zeros(1, 2);
+
+            letters = 1:n_input_chans; % load*2 letter choices
+            stim_letters = randperm(n_input_chans, task_load); % load letter choices
+            probe_letter = randperm(n_input_chans, 1); % 1 letter choice
+
+            u(stim_letters, stim_on:stim_on+stim_dur) = 1; % stimulus presentation
+            u(probe_letter, stim_on+stim_dur+delay:end) = 1; % probe presentation
+
+            label = 2*(ismember(probe_letter, stim_letters)) - 1;
+            trials(j) = label;
+
+            stims = struct();
+            stims.mode = 'none';
+            [~, ~, spk, rs, all_fr, out, params] = LIF_network_fnc(curr_mat, opt_scaling_factor_smooth,...
+                u, stims, down_sample, use_initial_weights);
+
+            out = smoothdata(squeeze(out), "gaussian", 5000);
+
+            outs(j,:) = out;
+
+            if label == 1
+                if max(out(response_time*100:end)) > 0.7
+                    stable_perfs(j) = 1;
+                end
+            elseif label == -1
+                if min(out(response_time*100:end)) < -0.7
+                    stable_perfs(j) = 1;
+                end
+            end
+
+        end % parfor end
+
+        % Performance
+        spike_perf_mean = mean(stable_perfs);
+
+        subplot(3, 4, i); hold on;
+        plot(outs(trials == 1,:)', 'Color', [1, 0, 0, 0.3]);
+        plot(mean(outs(trials == 1,:),1), 'Color', [1,1,1,1], 'LineWidth', 3);
+        plot(outs(trials == -1,:)', 'Color', [0, 0, 1, 0.3]);
+        plot(mean(outs(trials == -1,:),1), 'Color', [1,1,1,1], 'LineWidth', 3);
+        xline(stim_on*100, 'Color', 'y', 'LineWidth', 3)
+        xline((stim_on+stim_dur)*100, 'Color', 'y', 'LineWidth', 3)
+        xline(probe_on*100, 'Color', 'y', 'LineWidth', 3)
+        ylim([-2, 2]);
+        title(['model ', num2str(i) ,': ', num2str(spike_perf_mean, 2)])
+
+    end
+
+    sgtitle(['task load ', num2str(task_load), ', N=', num2str(n_neurons), ' neurons, delay=', num2str(delay)])
+
+end
+
+%% Plot some model outputs, downsampling
+
+% Plots example output for 12 spiking models, for delay=10 and delay=50
+
+
+clear; clc;
+
+current_path = pwd;
+
+task_dir = '/home/nuttidalab/Documents/spikeRNN/models/letters/';
+task_type = 'letters';
+task_loads = [3];
+% task_loads = [2, 3];
+% n_neurons = 200;
+n_neurons = 400;
+
+delay=10;
+
+for n_load = 1:length(task_loads)
+    task_load = task_loads(n_load);
+    load_str = num2str(task_load);
+    load_dir = [task_dir, 'load_', load_str, '/'];
+    wcard = ['*N_',num2str(n_neurons), '*'];
+    % wcard = '*load_*';
+    % max_tr = 10000; % max training trials
+    % perf_threshold = .95;
+    % % perf_threshold = [0.60 0.80];
+    % disp(['PERFORMANCE THRESHOLD SET TO ' num2str(perf_threshold)]);
+    % stable_mods = return_stable(task_dir, wcard, perf_threshold, task_type, max_tr);
+
+    mat_files = dir(fullfile(load_dir, wcard));
+    
+    figure;
+    for i = 1:12 %length(mat_files)
+        if ~isfolder(fullfile(load_dir, mat_files(i).name)) & ~isempty(strfind(mat_files(i).name, '.mat'))
+            curr_mat = fullfile(load_dir, mat_files(i).name);
+        end
+
+        load(curr_mat);
+
+        % generate trials and plot outputs
+        n_trials = 100;
+        down_sample = 1;
+        use_initial_weights = false; 
+
+        stim_on = 51;
+        stim_dur = 100;
+        stim2_dur = 130;
+        probe_on = stim_on + stim_dur + delay;
+        response_time = stim_on + stim_dur + delay + 10;
+        T = response_time + stim2_dur;
+
+        trials = zeros(n_trials, 1);
+        stable_perfs = zeros(n_trials, 1);
+        % outs = zeros(n_trials, (T-1)*100);
+        outs = zeros(n_trials, (T-1));
+
+        n_input_chans = task_load*2;
+
+        parfor j = 1:n_trials
+            u = zeros(n_input_chans, T);
+            u_lab = zeros(1, 2);
+
+            letters = 1:n_input_chans; % load*2 letter choices
+            stim_letters = randperm(n_input_chans, task_load); % load letter choices
+            probe_letter = randperm(n_input_chans, 1); % 1 letter choice
+
+            u(stim_letters, stim_on:stim_on+stim_dur) = 1; % stimulus presentation
+            u(probe_letter, stim_on+stim_dur+delay:end) = 1; % probe presentation
+
+            label = 2*(ismember(probe_letter, stim_letters)) - 1;
+            trials(j) = label;
+
+            stims = struct();
+            stims.mode = 'none';
+            [~, ~, spk, rs, all_fr, out, params] = LIF_network_fnc(curr_mat, opt_scaling_factor_smooth,...
+                u, stims, down_sample, use_initial_weights);
+
+            % out = smoothdata(squeeze(out), "gaussian", 5000);
+            out = downsample_signal(20000, 200, squeeze(out))
+
+            outs(j,:) = out;
+
+            % if label == 1
+            %     if max(out(response_time*100:end)) > 0.7
+            %         stable_perfs(j) = 1;
+            %     end
+            % elseif label == -1
+            %     if min(out(response_time*100:end)) < -0.7
+            %         stable_perfs(j) = 1;
+            %     end
+            % end
+
+            if label == 1
+                if max(out(response_time:end)) > 0.7
+                    stable_perfs(j) = 1;
+                end
+            elseif label == -1
+                if min(out(response_time:end)) < -0.7
+                    stable_perfs(j) = 1;
+                end
+            end
+
+        end % parfor end
+
+        % Performance
+        spike_perf_mean = mean(stable_perfs);
+
+        subplot(3, 4, i); hold on;
+        plot(outs(trials == 1,:)', 'Color', [1, 0, 0, 0.3]);
+        plot(mean(outs(trials == 1,:),1), 'Color', [1,1,1,1], 'LineWidth', 3);
+        plot(outs(trials == -1,:)', 'Color', [0, 0, 1, 0.3]);
+        plot(mean(outs(trials == -1,:),1), 'Color', [1,1,1,1], 'LineWidth', 3);
+        % xline(stim_on*100, 'Color', 'y', 'LineWidth', 3)
+        % xline((stim_on+stim_dur)*100, 'Color', 'y', 'LineWidth', 3)
+        % xline(probe_on*100, 'Color', 'y', 'LineWidth', 3)
+        xline(stim_on, 'Color', 'y', 'LineWidth', 3)
+        xline((stim_on+stim_dur), 'Color', 'y', 'LineWidth', 3)
+        xline(probe_on, 'Color', 'y', 'LineWidth', 3)
+        ylim([-2, 2]);
+        title(['model ', num2str(i) ,': ', num2str(spike_perf_mean, 2)])
+
+    end
+
+    sgtitle(['task load ', num2str(task_load), ', N=', num2str(n_neurons), ' neurons, delay=', num2str(delay)])
+
+end
+
+%% Plot spiking raster
+
+dt = params.dt;
+T = params.T;
+t = dt:dt:T;
+
+figure('Units', 'Normalized', 'Outerposition', [0 0 0.22 0.20]);
+hold on; axis tight;
+inh_ind = find(inh);
+exc_ind = find(exc);
+all_ind = [exc_ind; inh_ind];
+all_ind = 1:N;
+for i = 1:length(all_ind)
+  curr_spk = spk(all_ind(i), 10:end);
+  if exc(all_ind(i)) == 1
+    plot(t(find(curr_spk)), ones(1, length(find(curr_spk)))*i, 'r.', 'markers', 8);
+  else
+    plot(t(find(curr_spk)), ones(1, length(find(curr_spk)))*i, 'b.', 'markers', 8);
+  end
+end
+
+%% Compare a load-2 vs a load-3 model
+
+clear; clc;
+
+current_path = pwd;
+
+task_dir = '/home/nuttidalab/Documents/spikeRNN/models/letters/';
+task_type = 'letters';
+task_loads = [2, 3];
+n_neurons = 400;
+
+delay=10;
+
+% spks = zeros(length(task_loads), n_neurons, 30000);
+% all_rs = zeros(length(task_loads), n_neurons, 30000);
+
+for n_load = 1:length(task_loads)
+    task_load = task_loads(n_load);
+    load_str = num2str(task_load);
+    load_dir = [task_dir, 'load_', load_str, '/'];
+    wcard = ['*N_',num2str(n_neurons), '*'];
+    
+    mat_files = dir(fullfile(load_dir, wcard));
+
+    i = 1;
+    curr_mat = fullfile(load_dir, mat_files(i).name);
+    % disp(mat_files(i))
+    load(curr_mat);
+
+    down_sample = 1;
+    use_initial_weights = false;
+
+    stim_on = 51;
+    stim_dur = 100;
+    stim2_dur = 130;
+    probe_on = stim_on + stim_dur + delay;
+    response_time = stim_on + stim_dur + delay + 10;
+    T = response_time + stim2_dur;
+
+
+    n_input_chans = task_load*2;
+
+    u = zeros(n_input_chans, T);
+    u_lab = zeros(1, 2);
+
+    letters = 1:n_input_chans; % load*2 letter choices
+    stim_letters = randperm(n_input_chans, task_load); % load letter choices
+    probe_letter = randperm(n_input_chans, 1); % 1 letter choice
+
+    u(stim_letters, stim_on:stim_on+stim_dur) = 1; % stimulus presentation
+    u(probe_letter, stim_on+stim_dur+delay:end) = 1; % probe presentation
+
+    label = 2*(ismember(probe_letter, stim_letters)) - 1;
+
+    stims = struct();
+    stims.mode = 'none';
+    [~, ~, spk, rs, all_fr, out, params] = LIF_network_fnc(curr_mat, opt_scaling_factor,...
+        u, stims, down_sample, use_initial_weights);
+
+    % spks(n_load,:,:) = spk;
+    % all_rs(n_load,:,:) = rs;
+
+    % out = smoothdata(squeeze(out), "gaussian", 5000);
+
+    if label == 1
+        if max(out(response_time*100:end)) > 0.7
+            stable_perf = 1;
+        end
+    elseif label == -1
+        if min(out(response_time*100:end)) < -0.7
+            stable_perf = 1;
+        end
+    end
+       
+
+    % plot raster
+    dt = params.dt;
+    T = params.T;
+    t = dt:dt:T;
+
+    figure('Units', 'Normalized', 'Outerposition', [0 0 0.22 0.20]);
+    hold on; axis tight;
+    inh_ind = find(inh);
+    exc_ind = find(exc);
+    all_ind = [exc_ind; inh_ind];
+    all_ind = 1:N;
+    for i = 1:length(all_ind)
+      curr_spk = spk(all_ind(i), 10:end);
+      if exc(all_ind(i)) == 1
+        plot(t(find(curr_spk)), ones(1, length(find(curr_spk)))*i, 'r.', 'markers', 8);
+      else
+        plot(t(find(curr_spk)), ones(1, length(find(curr_spk)))*i, 'b.', 'markers', 8);
+      end
+    end
+    xlabel('time'); ylabel('neurons')
+    title(['example trial raster, load = ', num2str(task_load)])
+
+    figure; hold on;
+    plot(rs')
+    xlabel('time'); ylabel('rate')
+    title(['example firing rates, load= ', num2str(task_load)])
+
+    figure; hold on;
+    scatter(1:n_neurons, w_out);
+    ylabel('w_out')
+    title(['w_out for load= ', num2str(task_load)])
+
+end
+
+
+
+
+
+
+
+
+
+

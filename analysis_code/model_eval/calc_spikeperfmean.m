@@ -43,7 +43,7 @@ for i = 1:length(mat_files)
     load(curr_full);
 
     % skip if already calculated
-    if exist('spike_perf_mean')
+    if exist('spike_perf_mean_smooth')
         clearvars -except model_dir mat_files n_trials use_initial_weights task_load delay
         continue;
     end
@@ -79,8 +79,10 @@ for i = 1:length(mat_files)
 
             stims = struct();
             stims.mode = 'none';
-            [W, REC, spk, rs, all_fr, out, params] = LIF_network_fnc(curr_full, opt_scaling_factor,...
+            [W, REC, spk, rs, all_fr, out, params] = LIF_network_fnc(curr_full, opt_scaling_factor_smooth,...
                 u, stims, down_sample, use_initial_weights);
+
+            out = smoothdata(squeeze(out), "gaussian", 5000);
 
             if label == 1
                 if max(out(response_time*100:end)) > 0.7
@@ -95,8 +97,8 @@ for i = 1:length(mat_files)
 
         % Save the perfs
         disp(mean(stable_perfs))
-        spike_perf_mean = mean(stable_perfs);
-        save(curr_full, 'spike_perf_mean', '-append');
+        spike_perf_mean_smooth = mean(stable_perfs);
+        save(curr_full, 'spike_perf_mean_smooth', '-append');
         % save(curr_full, 'stable_perfs', '-append');   
         clearvars -except model_dir mat_files n_trials use_initial_weights task_load delay
     else

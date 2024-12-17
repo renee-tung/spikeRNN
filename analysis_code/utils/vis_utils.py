@@ -39,7 +39,7 @@ def generate_letters_type(T, stim_on, stim_dur, delay, load, label = 1):
 NEURON FIRING RATES
 '''
 
-def plot_neuron_rates(r, exc_ind, inh_ind, stim_on, stim_dur, delay, sort=1):
+def plot_neuron_rates(r, exc_ind, inh_ind, stim_on, stim_dur, delay, vmin=0, vmax=1, sort=1, suptitle='Neuron rates'):
     # r is (time x neurons)
     # exc_ind and inh_ind are indices of excitatory and inhibitory neurons
 
@@ -60,7 +60,7 @@ def plot_neuron_rates(r, exc_ind, inh_ind, stim_on, stim_dur, delay, sort=1):
         inh_ind = inh_ind[sort_idx]
 
     fig,axs = plt.subplots(1,2,figsize=(16,4))
-    im1 = axs[0].imshow(r[:,exc_ind].T,cmap='binary',vmin=0, vmax=1, aspect='auto')
+    im1 = axs[0].imshow(r[:,exc_ind].T,cmap='binary',vmin=vmin, vmax=vmax, aspect='auto')
     axs[0].set_xlabel('time')
     axs[0].set_ylabel('neurons')
     axs[0].set_title('excitatory neurons')
@@ -70,7 +70,7 @@ def plot_neuron_rates(r, exc_ind, inh_ind, stim_on, stim_dur, delay, sort=1):
     # axs[0].axvline(x=stim2_off, color='r', linestyle='--')
     fig.colorbar(im1)
 
-    im2 = axs[1].imshow(r[:,inh_ind].T,cmap='binary',vmin=0, vmax=1, aspect='auto')
+    im2 = axs[1].imshow(r[:,inh_ind].T,cmap='binary',vmin=vmin, vmax=vmax, aspect='auto')
     axs[1].set_xlabel('time')
     axs[1].set_ylabel('neurons')
     axs[1].set_title('inhibitory neurons')
@@ -80,15 +80,16 @@ def plot_neuron_rates(r, exc_ind, inh_ind, stim_on, stim_dur, delay, sort=1):
     # axs[1].axvline(x=stim2_off, color='r', linestyle='--')
     fig.colorbar(im2)
 
+    plt.suptitle(suptitle)
     plt.show()
 
-    print(f'{len(exc_ind)} excitatory neurons')
-    print(f'{len(inh_ind)} inhibitory neurons')
+    # print(f'{len(exc_ind)} excitatory neurons')
+    # print(f'{len(inh_ind)} inhibitory neurons')
 
     return
 
 
-def plot_neuron_raster(spk, exc_ind, inh_ind, stim_on, stim_dur, delay, sort=1):
+def plot_neuron_raster(spk, exc_ind, inh_ind, stim_on, stim_dur, delay, sort=1, suptitle='Neuron raster'):
     # spk is (neurons x time)
     # exc_ind and inh_ind are indices of excitatory and inhibitory neurons
 
@@ -133,10 +134,11 @@ def plot_neuron_raster(spk, exc_ind, inh_ind, stim_on, stim_dur, delay, sort=1):
     axs[1].axvline(x=stim2_off, color='r', linestyle='--')
     axs[1].set_xticks(range(0,spk.shape[1],10000),np.arange(0,spk.shape[1],10000)/20000)
 
+    plt.suptitle(suptitle)
     plt.show()
 
-    print(f'{len(exc_ind)} excitatory neurons')
-    print(f'{len(inh_ind)} inhibitory neurons')
+    # print(f'{len(exc_ind)} excitatory neurons')
+    # print(f'{len(inh_ind)} inhibitory neurons')
 
     return
 

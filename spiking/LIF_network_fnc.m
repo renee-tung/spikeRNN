@@ -199,6 +199,7 @@ time = 1:1:nt;
 
 % Plot the population response
 out = w_out/scaling_factor*rs;
+% out = smoothdata(squeeze(out), "gaussian", 5000); % added a line to smooth outputs
 
 % Compute average firing rate for each population (excitatory/inhibitory)
 inh_fr = zeros(size(inh_ind));

@@ -64,15 +64,26 @@ for i = 1:length(mat_files)
   % Load the model
   load(curr_full);
 
-  % Skip if the file was run before
-  if exist('opt_scaling_factor')
-      if ~isnan(opt_scaling_factor)
+  % % Skip if the file was run before
+  % if exist('opt_scaling_factor')
+  %     if ~isnan(opt_scaling_factor)
+  %       clearvars -except model_dir mat_files n_trials scaling_factors use_initial_weights task_load
+  %       continue;
+  %     end
+  % else
+  %   opt_scaling_factor = NaN;
+  %   save(curr_full, 'opt_scaling_factor', '-append');
+  % end
+
+  % Skip if the file was run before (on smoothed outputs)
+  if exist('opt_scaling_factor_smooth')
+      if ~isnan(opt_scaling_factor_smooth)
         clearvars -except model_dir mat_files n_trials scaling_factors use_initial_weights task_load
         continue;
       end
   else
-    opt_scaling_factor = NaN;
-    save(curr_full, 'opt_scaling_factor', '-append');
+    opt_scaling_factor_smooth = NaN;
+    save(curr_full, 'opt_scaling_factor_smooth', '-append');
   end
 
   % Go-NoGo task
@@ -262,7 +273,7 @@ for i = 1:length(mat_files)
     
     % figure;
     for k = 1:length(scaling_factors)
-      outs = zeros(n_trials, 30000);
+      % outs = zeros(n_trials, 30000);
       trials = zeros(n_trials, 1);
       perfs = zeros(n_trials, 1);
 
@@ -293,33 +304,41 @@ for i = 1:length(mat_files)
         stims.mode = 'none';
         [W, REC, spk, rs, all_fr, out, params] = LIF_network_fnc(curr_full, scaling_factor,...
             u, stims, down_sample, use_initial_weights);
-        outs(j, :) = out;
+
+        out = smoothdata(squeeze(out), "gaussian", 5000);
+
+        % outs(j, :) = out;
         if label == 1
           if max(out(response_time*100:end)) > 0.7
             perfs(j) = 1;
           end
         elseif label == -1
-          if min(out(response_time*100:end)) < -0.7
-            perfs(j) = 1;
-          end
+            if min(out(response_time*100:end)) < -0.7
+                perfs(j) = 1;
+            end
         end
       end % parfor end
       all_perfs(k) = mean(perfs);
 
-% subplot(3, 4, k); hold on;
-% plot(outs(trials == 1,:)', 'Color', [1, 0, 0, 0.5]); 
-% plot(outs(trials == -1,:)', 'Color', [0, 0, 1, 0.5]); 
-% title(['scaling factor ', num2str(scaling_factors(k))])
+      % subplot(3, 4, k); hold on;
+      % plot(outs(trials == 1,:)', 'Color', [1, 0, 0, 0.5]);
+      % plot(outs(trials == -1,:)', 'Color', [0, 0, 1, 0.5]);
+      % title(['scaling factor ', num2str(scaling_factors(k))])
 
     end % scaling end
-% sgtitle(['task load 3, model with 200 neurons (good), optimal scaling factor: ', num2str(opt_scaling_factor)])
-
     [v, ind] = max(all_perfs);
     [v, scaling_factors(ind)]
 
+    % sgtitle(['task load 3, model with 400 neurons, optimal scaling factor ', ...
+    %     'old: ', num2str(opt_scaling_factor), ', new: ', num2str(scaling_factors(ind))])
+
+    
+
     % Save the optimal scaling factor
-    opt_scaling_factor = scaling_factors(ind);
-    save(curr_full, 'opt_scaling_factor', 'all_perfs', 'scaling_factors', '-append');
+    % opt_scaling_factor = scaling_factors(ind);
+    % save(curr_full, 'opt_scaling_factor', 'all_perfs', 'scaling_factors', '-append');
+    opt_scaling_factor_smooth = scaling_factors(ind);
+    save(curr_full, 'opt_scaling_factor_smooth', '-append');
     clearvars -except model_dir mat_files n_trials scaling_factors use_initial_weights task_load
   end
 end
