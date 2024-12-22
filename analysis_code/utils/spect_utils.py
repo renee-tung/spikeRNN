@@ -36,12 +36,20 @@ def calc_band_power(s, f, band='all'):
         band_sem = {}
         for band in band_ranges:
             f_band_idx = np.where((f >= band_ranges[band][0]) & (f <=band_ranges[band][1]))[0]
-            band_power[band] = np.nanmean(s[f_band_idx,:], axis=0)
-            band_sem[band] = np.nanstd(s[f_band_idx,:], axis=0)/np.sqrt(s[f_band_idx,:].shape[0])
+            if len(s.shape) == 2:
+                band_power[band] = np.nanmean(s[f_band_idx,:], axis=0)
+                band_sem[band] = np.nanstd(s[f_band_idx,:], axis=0)/np.sqrt(s[f_band_idx,:].shape[0])
+            elif len(s.shape) == 3:
+                band_power[band] = np.nanmean(s[:,f_band_idx,:], axis=1)
+                band_sem[band] = np.nanstd(s[:,f_band_idx,:], axis=1)/np.sqrt(s[:,f_band_idx,:].shape[1])
     elif isinstance(band, str):
         f_band_idx = np.where((f >= band_ranges[band][0]) & (f <=band_ranges[band][1]))[0]
-        band_power = np.nanmean(s[f_band_idx,:], axis=0)
-        band_sem = np.nanstd(s[f_band_idx,:], axis=0)/np.sqrt(s[f_band_idx,:].shape[0])
+        if len(s.shape) == 2:
+            band_power = np.nanmean(s[f_band_idx,:], axis=0)
+            band_sem = np.nanstd(s[f_band_idx,:], axis=0)/np.sqrt(s[f_band_idx,:].shape[0])
+        elif len(s.shape) == 3:
+            band_power = np.nanmean(s[:,f_band_idx,:], axis=1)
+            band_sem = np.nanstd(s[:,f_band_idx,:], axis=1)/np.sqrt(s[:,f_band_idx,:].shape[1])
 
     return band_power, band_sem
 
@@ -79,6 +87,7 @@ def calc_band_power_bootstrap(s1, s2, f, band='all', nboot=1000, CI_int=(2.5, 97
 
     return band_avg, band_err, band_pdiff
     
+
 def notch_filter_eeg(eeg, fs, f0=50, Q=30):
     # Notch filter for removing 50Hz noise
     # eeg is the EEG signal (channels x time)
@@ -205,8 +214,8 @@ def compare_avg_spect(signal, fs, nperseg, noverlap, nfft, neur1_ind, neur2_ind,
 
 
 def calc_avg_spect(signal, fs, nperseg, noverlap, nfft, f_cutoff, exc_ind, inh_ind,
-                   stim1_on, stim1_off, stim2_on, stim2_off,
-                   plot=1, t_skip=5, f_skip=2, trial_label='same',
+                   stim1_on=0, stim1_off=0, stim2_on=0, stim2_off=0,
+                   plot=0, t_skip=5, f_skip=2, trial_label='same',
                    IPSC_range = [], spect_range = [], beta_range = []):
     
     # plots average spectrogram of excitatory and inhibitory neurons separately
@@ -290,7 +299,13 @@ def calc_avg_spect(signal, fs, nperseg, noverlap, nfft, f_cutoff, exc_ind, inh_i
 
     return f, t, s, s_exc, s_inh
 
+def calc_spect(signal, fs, nperseg, noverlap, nfft):
+    # Calculates the spectrogram
 
+    f, t, s = spectrogram(signal, fs=fs, window=('tukey', 0.25), 
+                          nperseg=nperseg, noverlap=noverlap, nfft=nfft, scaling='density')
+
+    return f, t, s
 
 def plot_two_avg_spect(f, t, s_trials1_mean, s_trials2_mean, nperseg, noverlap, nfft,
                       fixation=0, stim_on=0, stim_off=0, probe=0,
@@ -366,6 +381,71 @@ def plot_two_avg_spect(f, t, s_trials1_mean, s_trials2_mean, nperseg, noverlap, 
 
 
     return f, t
+
+def plot_band_power_bootstrap(band_trials1, band_trials2, t, nboot=1000, CI_int=(2.5, 97.5), random_seed=820,
+                              type1_label='exc neurons', type2_label='inh neurons', p_sig=0.05, title = [],
+                              stim_on=0, stim_off=0, probe=0, t_skip=5, 
+                              band_range = [], time_range = []):
+    
+    # band_trials is a dict with keys as bands and values as the band power (trials x time)
+    # f is the frequency vector
+    # t is the time vector
+
+    type_label = [type1_label,type2_label]
+    c = ['b','g','r','c','m','y','k']
+
+    fft_times = {
+        'stim_on_idx': np.where(t <= stim_on)[0][-1],
+        'stim_off_idx': np.where(t <= stim_off)[0][-1],
+        'probe_idx': np.where(t <= probe)[0][-1],
+        # 'response_idx': np.where(t <= response)[0][-1]
+    }
+
+    if len(time_range) == 2:
+        time_start_idx = [np.where(t <= time_range[0])[0][-1] if ~np.isnan(time_range[0]) else 0][0]
+        time_end_idx = [np.where(t <= time_range[1])[0][-1] if ~np.isnan(time_range[1]) else len(t)][0]
+    elif len(time_range) == 0:
+        time_start_idx = 0
+        time_end_idx = len(t)
+
+    # plot band powers separately, with each band as a subplot
+    fig, axs = plt.subplots(len(band_trials1),1,figsize=(10,18))
+    for j, band in enumerate(band_trials1.keys()):
+        t1_avg, t1_CI, t2_avg, t2_CI, _, _, p_diff = fnc_time_bootstrap_optimized_retX(band_trials1[band], band_trials2[band],
+                                                                nboot=nboot, CI_int=CI_int, random_seed=random_seed)
+        t1_avg = np.nanmean(t1_avg, axis=1)
+        t2_avg = np.nanmean(t2_avg, axis=1)
+        axs[j].plot(t1_avg, color = c[0], label=f'{band} {type_label[0]}')
+        axs[j].fill_between(range(len(t1_avg)), t1_CI[:,0], t1_CI[:,1], alpha=0.3, color = c[0])
+        axs[j].plot(t2_avg, color = c[1], label=f'{band} {type_label[1]}')
+        axs[j].fill_between(range(len(t2_avg)), t2_CI[:,0], t2_CI[:,1], alpha=0.3, color = c[1])
+        axs[j].set_xticks(range(len(t))[::t_skip],t[::t_skip])
+        axs[j].set_title(f'{band} band power')
+        for key in fft_times:
+            axs[j].axvline(x=fft_times[key], color='r', linestyle='--')
+        axs[j].set_xlim([time_start_idx, time_end_idx])
+        axs[j].legend()
+        if len(band_range) > 0:
+            axs[j].set_ylim(band_range)
+
+        time_vector = np.array(range(0, len(t1_avg)))
+        significant_timepoints = time_vector[p_diff < p_sig]
+        visible_y = np.append(t1_CI[:,1][time_start_idx:time_end_idx], t2_CI[:,1][time_start_idx:time_end_idx]).flatten()
+        if len(visible_y):
+            axs[j].set_ylim(np.amin(visible_y), np.max(visible_y))
+        ymin, ymax = axs[j].get_ylim()
+        axs[j].scatter(significant_timepoints,
+                        np.zeros_like(significant_timepoints) + ymax + (ymax-ymin)/10, color='k', label='_nolegend_', marker='s', s=10)
+        axs[j].set_ylim(0, ymax + (ymax-ymin)/5)
+
+        if j == len(band_trials1)-1:
+            axs[j].set_xlabel('time (s)')
+
+    if len(title) > 0:
+        fig.suptitle(title)
+    plt.show()
+    
+    return
 
 
 def compare_two_spect_groups_bootstrap(f, t, s_trials1, s_trials2, plot=1,
