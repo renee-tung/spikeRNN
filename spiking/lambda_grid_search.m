@@ -64,26 +64,15 @@ for i = 1:length(mat_files)
   % Load the model
   load(curr_full);
 
-  % % Skip if the file was run before
-  % if exist('opt_scaling_factor')
-  %     if ~isnan(opt_scaling_factor)
-  %       clearvars -except model_dir mat_files n_trials scaling_factors use_initial_weights task_load
-  %       continue;
-  %     end
-  % else
-  %   opt_scaling_factor = NaN;
-  %   save(curr_full, 'opt_scaling_factor', '-append');
-  % end
-
-  % Skip if the file was run before (on smoothed outputs)
-  if exist('opt_scaling_factor_smooth')
-      if ~isnan(opt_scaling_factor_smooth)
+  % Skip if the file was run before
+  if exist('opt_scaling_factor')
+      if ~isnan(opt_scaling_factor)
         clearvars -except model_dir mat_files n_trials scaling_factors use_initial_weights task_load
         continue;
       end
   else
-    opt_scaling_factor_smooth = NaN;
-    save(curr_full, 'opt_scaling_factor_smooth', '-append');
+    opt_scaling_factor = NaN;
+    save(curr_full, 'opt_scaling_factor', '-append');
   end
 
   % Go-NoGo task
@@ -302,10 +291,9 @@ for i = 1:length(mat_files)
 
         stims = struct();
         stims.mode = 'none';
+        use_smoothing=true;
         [W, REC, spk, rs, all_fr, out, params] = LIF_network_fnc(curr_full, scaling_factor,...
-            u, stims, down_sample, use_initial_weights);
-
-        out = smoothdata(squeeze(out), "gaussian", 5000);
+            u, stims, down_sample, use_initial_weights, use_smoothing);
 
         % outs(j, :) = out;
         if label == 1
@@ -335,10 +323,8 @@ for i = 1:length(mat_files)
     
 
     % Save the optimal scaling factor
-    % opt_scaling_factor = scaling_factors(ind);
-    % save(curr_full, 'opt_scaling_factor', 'all_perfs', 'scaling_factors', '-append');
-    opt_scaling_factor_smooth = scaling_factors(ind);
-    save(curr_full, 'opt_scaling_factor_smooth', '-append');
+    opt_scaling_factor = scaling_factors(ind);
+    save(curr_full, 'opt_scaling_factor', 'all_perfs', 'scaling_factors', '-append');
     clearvars -except model_dir mat_files n_trials scaling_factors use_initial_weights task_load
   end
 end

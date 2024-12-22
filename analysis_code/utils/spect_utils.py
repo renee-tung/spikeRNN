@@ -201,7 +201,7 @@ def compare_avg_spect(signal, fs, nperseg, noverlap, nfft, neur1_ind, neur2_ind,
         # plt.show()
 
 
-    return f[:f_cutoff_idx], t, s[:f_cutoff_idx,:] 
+    return f, t, s
 
 
 def calc_avg_spect(signal, fs, nperseg, noverlap, nfft, f_cutoff, exc_ind, inh_ind,
@@ -405,14 +405,14 @@ def compare_two_spect_groups_bootstrap(f, t, s_trials1, s_trials2, plot=1,
     
     # plot band powers separately, with each band as a subplot
     if plot:
-        fig, axs = plt.subplots(len(band_err),1,figsize=(16,25))
+        fig, axs = plt.subplots(len(band_err),1,figsize=(10,18))
         for i, type in enumerate(type_label):
             for j, band in enumerate(band_avg):
                 band_bootstrap_avg = np.nanmean(band_avg[band][i], axis=1)
                 axs[j].plot(band_bootstrap_avg, color = c[i], label=f'{band} {type}')
                 axs[j].fill_between(range(len(band_bootstrap_avg)), band_err[band][i][:,0], band_err[band][i][:,1],
                                     alpha=0.3, color = c[i])
-                axs[j].set_xlabel('time (s)')
+                
                 tick_positions = range(len(t))[::t_skip]
                 tick_labels = t[::t_skip]
                 axs[j].set_xticks(tick_positions)
@@ -429,10 +429,17 @@ def compare_two_spect_groups_bootstrap(f, t, s_trials1, s_trials2, plot=1,
                 if i == 0:
                     time_vector = np.array(range(0, len(band_bootstrap_avg)))
                     significant_timepoints = time_vector[band_pdiff[band] < p_sig]
+                    # visible_y = band_err[band][i+1][:,1][time_start_idx:time_end_idx]
+                    visible_y = np.append(np.nanmean(band_avg[band][i], axis=1)[time_start_idx:time_end_idx],
+                                               np.nanmean(band_avg[band][i+1], axis=1)[time_start_idx:time_end_idx]).flatten()
+                    if len(visible_y):
+                        axs[j].set_ylim(np.amin(visible_y), np.max(visible_y))
                     ymin, ymax = axs[j].get_ylim()
                     axs[j].scatter(significant_timepoints,
                                     np.zeros_like(significant_timepoints) + ymax + (ymax-ymin)/10, color='k', label='_nolegend_', marker='s', s=10)
-                    
+                    axs[j].set_ylim(0, ymax + (ymax-ymin)/5)
+            axs[j].set_xlabel('time (s)')   
+                 
         if len(title) > 0:
             fig.suptitle(title)
         plt.show()

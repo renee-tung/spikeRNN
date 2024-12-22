@@ -82,10 +82,9 @@ for i = 1:length(mat_files)
 
             stims = struct();
             stims.mode = 'none';
-            [W, REC, spk, rs, all_fr, out, params] = LIF_network_fnc(curr_full, opt_scaling_factor_smooth,...
-                u, stims, down_sample, use_initial_weights);
-            
-            out = smoothdata(squeeze(out), "gaussian", 5000);
+            use_smoothing = true;
+            [W, REC, spk, rs, all_fr, out, params] = LIF_network_fnc(curr_full, opt_scaling_factor,...
+                u, stims, down_sample, use_initial_weights, use_smoothing);
 
             if label == 1
                 if max(out(response_time*100:end)) > 0.7

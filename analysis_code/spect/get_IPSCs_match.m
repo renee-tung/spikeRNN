@@ -13,7 +13,7 @@ task_loads = [2, 3];
 n_neurons = 400;
 % n_neurons = 400;
 
-normalize_ipscs = true;
+normalize_ipscs = false;
 
 fs_downsamp = 1000; % downsample IPSCs to 1000Hz
 
@@ -60,12 +60,12 @@ for n_load = 1:length(task_loads) % for this load
         end
         disp(mat_files(i).name)
 
-        save_name = [save_dir, 'IPSC_match_delay', num2str(delay),'_',mat_files(i).name];
+        save_name = [save_dir, 'IPSC_match_delay', num2str(delay),'_nonorm_',mat_files(i).name];
         % check if there are IPSCs calculated already
-        if exist(save_name, 'file') > 0
-            disp('IPSCs already calculated, moving to next model...')
-            continue
-        end
+        % if exist(save_name, 'file') > 0
+        %     disp('IPSCs already calculated, moving to next model...')
+        %     continue
+        % end
 
         % input stim info
         task_load = task_loads(n_load);
@@ -77,6 +77,7 @@ for n_load = 1:length(task_loads) % for this load
         down_sample = 1;
         stims = struct();
         stims.mode = 'none'; % For LIF simulation, no stims
+        use_smoothing = true;
 
         n_trials = 100; % n_trials
         perf = zeros(n_trials,1);
@@ -97,9 +98,7 @@ for n_load = 1:length(task_loads) % for this load
                 task_load, probe_letter, match);
 
             [~, ~, ~, ~, ~, out, params] = LIF_network_fnc(curr_mat, opt_scaling_factor,...
-                u, stims, down_sample, use_initial_weights);
-
-            out = smoothdata(squeeze(out), "gaussian", 5000); % adding line to smooth outputs
+                u, stims, down_sample, use_initial_weights, use_smoothing);
 
             stim_letters_all(n_trial, :) = stim_letters;
             probe_letters_all(n_trial) = probe_letter;
@@ -141,7 +140,14 @@ for n_load = 1:length(task_loads) % for this load
         ipscs_mismatch = squeeze(mean(ipscs_all(labels == -1,:,:),1));
         disp(['Mismatch trials: n=', num2str(sum(labels==-1)), ', mean performance: ', num2str(mean(perf(labels==-1)))])
 
-        save(save_name, 'ipscs_match', 'ipscs_mismatch', 'perf', 'labels', 'stim_letters_all', 'probe_letters_all', ...
+        ipscs_match_corr = squeeze(mean(ipscs_all((labels == 1) & (perf == 1),:,:),1));
+        ipscs_mismatch_corr = squeeze(mean(ipscs_all((labels == -1) & (perf == 1),:,:),1));
+        ipscs_match_incorr = squeeze(mean(ipscs_all((labels == 1) & (perf == 0),:,:),1));
+        ipscs_mismatch_incorr = squeeze(mean(ipscs_all((labels == -1) & (perf == 0),:,:),1));
+
+        save(save_name, 'ipscs_all', 'ipscs_match', 'ipscs_mismatch', ...
+            'ipscs_match_corr', 'ipscs_mismatch_corr', 'ipscs_match_incorr', 'ipscs_mismatch_incorr',...
+            'perf', 'labels', 'stim_letters_all', 'probe_letters_all', ...
             'delay','stim_on','stim_dur','probe_dur','T')
 
     end
@@ -191,5 +197,42 @@ for n_load = 1:length(task_loads) % for this load
     for i = 1:length(mat_files) % for this model
         save_name = [save_dir, 'IPSC_match_delay', num2str(delay),'_',mat_files(i).name];
         save(save_name, 'delay','stim_on','stim_dur','probe_dur','T', '-append')
+    end
+end
+
+%% re-save opt_scaling_factor_smooth as opt_scaling_factor
+
+clear; clc;
+
+current_path = pwd;
+
+task_dir = '/home/nuttidalab/Documents/spikeRNN/models/letters/';
+task_name = 'letters';
+% task_loads = [3];
+task_loads = [2, 3];
+n_neurons = 400;
+% n_neurons = 400;
+
+% params for bhv trials
+% delay = 10;
+delay = 50;
+stim_on = 51;
+stim_dur = 100;
+probe_dur = 130;
+response_time = stim_on + stim_dur + delay + 10;
+T = response_time + probe_dur;
+
+for n_load = 1:length(task_loads) % for this load
+    load_str = num2str(task_loads(n_load));
+    load_dir = [task_dir, 'load_', load_str, '/'];
+    wcard = ['*N_',num2str(n_neurons), '*'];
+
+    mat_files = dir(fullfile(load_dir, wcard));
+
+    for i = 1:length(mat_files) % for this model
+        curr_full = fullfile(load_dir, mat_files(i).name);
+        load(curr_full)
+        opt_scaling_factor = opt_scaling_factor_smooth;
+        save(curr_full, 'opt_scaling_factor', '-append')
     end
 end

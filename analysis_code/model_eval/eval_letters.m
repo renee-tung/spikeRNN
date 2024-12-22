@@ -286,8 +286,9 @@ for n_load = 1:length(task_loads)
 
             stims = struct();
             stims.mode = 'none';
-            [~, ~, spk, rs, all_fr, out, params] = LIF_network_fnc(curr_mat, opt_scaling_factor_smooth,...
-                u, stims, down_sample, use_initial_weights);
+            use_smoothing = 'false';
+            [~, ~, spk, rs, all_fr, out, params] = LIF_network_fnc(curr_mat, opt_scaling_factor,...
+                u, stims, down_sample, use_initial_weights, use_smoothing);
 
             % out = smoothdata(squeeze(out), "gaussian", 5000);
 
@@ -400,10 +401,11 @@ for n_load = 1:length(task_loads)
 
             stims = struct();
             stims.mode = 'none';
-            [~, ~, spk, rs, all_fr, out, params] = LIF_network_fnc(curr_mat, opt_scaling_factor_smooth,...
-                u, stims, down_sample, use_initial_weights);
+            use_smoothing = true;
+            [~, ~, spk, rs, all_fr, out, params] = LIF_network_fnc(curr_mat, opt_scaling_factor,...
+                u, stims, down_sample, use_initial_weights, use_smoothing);
 
-            out = smoothdata(squeeze(out), "gaussian", 5000);
+            % out = smoothdata(squeeze(out), "gaussian", 5000);
 
             outs(j,:) = out;
 
@@ -514,8 +516,9 @@ for n_load = 1:length(task_loads)
 
             stims = struct();
             stims.mode = 'none';
-            [~, ~, spk, rs, all_fr, out, params] = LIF_network_fnc(curr_mat, opt_scaling_factor_smooth,...
-                u, stims, down_sample, use_initial_weights);
+            use_smoothing = false;
+            [~, ~, spk, rs, all_fr, out, params] = LIF_network_fnc(curr_mat, opt_scaling_factor,...
+                u, stims, down_sample, use_initial_weights, use_smoothing);
 
             % out = smoothdata(squeeze(out), "gaussian", 5000);
             out = downsample_signal(20000, 200, squeeze(out))
@@ -644,8 +647,9 @@ for n_load = 1:length(task_loads)
 
     stims = struct();
     stims.mode = 'none';
+    use_smoothing=true;
     [~, ~, spk, rs, all_fr, out, params] = LIF_network_fnc(curr_mat, opt_scaling_factor,...
-        u, stims, down_sample, use_initial_weights);
+        u, stims, down_sample, use_initial_weights, use_smoothing);
 
     % spks(n_load,:,:) = spk;
     % all_rs(n_load,:,:) = rs;

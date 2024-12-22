@@ -8,7 +8,7 @@
 % (https://senselab.med.yale.edu/modeldb/ShowModel.cshtml?model=190565&file=/NicolaClopath2017/)
 
 function [W, REC, spk, rs, all_fr, out, params] = LIF_network_fnc(model_path,...
-scaling_factor, u, stims, downsample, use_initial_weights)
+scaling_factor, u, stims, downsample, use_initial_weights, use_smoothing)
 % FUNCTION LIF_network_fnc
 % INPUT
 %   - model_path: trained model full path (directory + filename)
@@ -23,6 +23,8 @@ scaling_factor, u, stims, downsample, use_initial_weights)
 %                 might not be as robust as the one without downsampling
 %   - use_initial_weights: whether to use w0 (random initial weights). This is mainly used
 %                          for testing.
+%   - use_smoothing: whether to smooth the model outputs with a gaussian
+%   kernel, width = 5000
 %
 % OUTPUT
 %   - W: recurrent connectivity matrix scaled by the scaling factor (N x N)
@@ -199,7 +201,9 @@ time = 1:1:nt;
 
 % Plot the population response
 out = w_out/scaling_factor*rs;
-% out = smoothdata(squeeze(out), "gaussian", 5000); % added a line to smooth outputs
+if use_smoothing
+    out = smoothdata(squeeze(out), "gaussian", 5000); % added a line to smooth outputs
+end
 
 % Compute average firing rate for each population (excitatory/inhibitory)
 inh_fr = zeros(size(inh_ind));
