@@ -55,7 +55,7 @@ def calc_band_power(s, f, band='all'):
 
 def calc_band_power_bootstrap(s1, s2, f, band='all', nboot=1000, CI_int=(2.5, 97.5), random_seed=820):
     # Calculates the power in each frequency band using bootstrapping
-    # s1 and s2 are the spectrograms (trials x freq x time)
+    # s1 and s2 are the spectrograms (n x freq x time)
     # f is the frequency vector
     # band is the band to calculate power in
     # band can be 'all', 'theta', 'alpha', 'beta', 'gamma1', 'gamma2'
@@ -435,7 +435,7 @@ def plot_band_power_bootstrap(band_trials1, band_trials2, t, nboot=1000, CI_int=
             axs[j].set_ylim(np.amin(visible_y), np.max(visible_y))
         ymin, ymax = axs[j].get_ylim()
         axs[j].scatter(significant_timepoints,
-                        np.zeros_like(significant_timepoints) + ymax + (ymax-ymin)/10, color='k', label='_nolegend_', marker='s', s=10)
+                        np.zeros_like(significant_timepoints) + ymax + (ymax-ymin)/10, color='k', label='_nolegend_', marker='s', s=25)
         axs[j].set_ylim(0, ymax + (ymax-ymin)/5)
 
         if j == len(band_trials1)-1:
@@ -457,7 +457,7 @@ def compare_two_spect_groups_bootstrap(f, t, s_trials1, s_trials2, plot=1,
     
     # plots average spectrogram depending on trials
     
-    # signal is (neurons x time)
+    # signal s is (n x neurons x time)
 
     type_label = [neur1_label,neur2_label]
 

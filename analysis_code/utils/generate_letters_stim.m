@@ -1,4 +1,5 @@
-function [u,label, stim_letters, probe_letter] = generate_letters_stim(T, stim_on, stim_dur, delay, task_load, probe_letter, match)
+function [u,label, stim_letters, probe_letter] = generate_letters_stim(T, stim_on, stim_dur, delay, task_load, ...
+    stim_letters, probe_letter, match)
 % generates letters task stimulus with specified probe letter
 % for random stim, put probe_letter = NaN
 % for random match or not, put match=NaN. Otherwise put true or false
@@ -8,7 +9,11 @@ n_input_chans = task_load*2;
 % letters task
 u = zeros(n_input_chans, T+1);
 
-stim_letters = randperm(n_input_chans, task_load); % load letter choices
+if sum(isnan(stim_letters)) > 0
+    stim_letters = randperm(n_input_chans, task_load); % load letter choices
+end
+
+
 if isnan(probe_letter)
     probe_letter = randperm(n_input_chans, 1); % 1 letter choice
 end

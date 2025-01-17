@@ -1,6 +1,9 @@
 %% Code to calculate IPSCs, downsample, and save
 
 % this code saves IPSCs averaged over trials that match vs mismatch
+% different from get_IPSCs_match.m because making trials more difficult (to
+% get more incorrects), and running more trials for load 3 in order to
+% cover the mismatch possibility types
 
 clear; clc;
 
@@ -13,13 +16,11 @@ task_loads = [2, 3];
 n_neurons = 400;
 % n_neurons = 400;
 
-normalize_ipscs = false;
-
 fs_downsamp = 1000; % downsample IPSCs to 1000Hz
 
 % params for bhv trials
 % delay = 10;
-delay = 50;
+delay = 100;
 stim_on = 51;
 stim_dur = 100;
 probe_dur = 130;
@@ -60,7 +61,7 @@ for n_load = 1:length(task_loads) % for this load
         end
         disp(mat_files(i).name)
 
-        save_name = [save_dir, 'IPSC_match_delay', num2str(delay),'_nonorm_',mat_files(i).name];
+        save_name = [save_dir, 'IPSC_match_correct_delay', num2str(delay),'_nonorm_',mat_files(i).name];
         % check if there are IPSCs calculated already
         % if exist(save_name, 'file') > 0
         %     disp('IPSCs already calculated, moving to next model...')
@@ -70,6 +71,7 @@ for n_load = 1:length(task_loads) % for this load
         % input stim info
         task_load = task_loads(n_load);
         n_input_chans = 2*task_load;
+        stim_comb = nchoosek(1:n_input_chans, task_load);
 
         % params for LIF model function
         use_initial_weights = false;
@@ -88,7 +90,6 @@ for n_load = 1:length(task_loads) % for this load
 
         for n_trial = 1:n_trials
             probe_letter = NaN;
-            stim_letters = NaN;
             if n_trial <= round(n_trials/2) % want half trials match, half mismatch
                 match = true;
             else
@@ -96,7 +97,7 @@ for n_load = 1:length(task_loads) % for this load
             end
 
             [u,label,stim_letters, probe_letter] = generate_letters_stim(T, stim_on, stim_dur, delay, ...
-                task_load, stim_letters, probe_letter, match);
+                task_load, probe_letter, match);
 
             [~, ~, ~, ~, ~, out, params] = LIF_network_fnc(curr_mat, opt_scaling_factor,...
                 u, stims, down_sample, use_initial_weights, use_smoothing);
@@ -115,20 +116,6 @@ for n_load = 1:length(task_loads) % for this load
             end
             labels(n_trial) = label;
             ipscs_temp = params.IPSCs; % temp store all IPSCs from trials w this probe
-
-            if normalize_ipscs
-                if n_trial==1
-                    disp('normalizing IPSCs...')
-                end
-                ipscs_mean = mean(ipscs_temp(:,baseline_onset:stim_onset),2);
-                ipscs_std = std(ipscs_temp(:,baseline_onset:stim_onset),0, 2);
-                if ipscs_std ~= 0
-                    ipscs_temp = (ipscs_temp-ipscs_mean)./ipscs_std; % zscore by baseline period
-                end
-            end
-            if any(isnan(ipscs_temp))
-                disp('there are nans')
-            end
 
             % now downsample to fs_downsamp
             ipscs_all(n_trial, :, :) = downsample_signal(T_spk, T_spk/fs_spk*fs_downsamp, ipscs_temp);
