@@ -71,7 +71,6 @@ for n_load = 1:length(task_loads) % for this load
         % input stim info
         task_load = task_loads(n_load);
         n_input_chans = 2*task_load;
-        stim_comb = nchoose
 
         % params for LIF model function
         use_initial_weights = false;
@@ -81,45 +80,51 @@ for n_load = 1:length(task_loads) % for this load
         stims.mode = 'none'; % For LIF simulation, no stims
         use_smoothing = true;
 
-        n_trials = 100; % n_trials
+        n_trials_per_stim = 20;
+        stim_combos = nchoosek(1:n_input_chans, task_load);
+        n_trials = length(stim_combos) * n_input_chans * n_trials_per_stim;
+
         perf = zeros(n_trials,1);
         labels = zeros(n_trials,1);
         stim_letters_all = zeros(n_trials, task_loads(n_load));
         probe_letters_all = zeros(n_trials, 1);
-        ipscs_all = zeros(n_trials, n_neurons, T_ds);
+        % ipscs_all = zeros(n_trials, n_neurons, T_ds);
+        ipscs_all = zeros(n_trials, 2, T_ds); % save the avg of exc and inh
+        match = NaN;
+        trial_idx = 0;
+        for n_stim = 1:length(stim_combos)
+            stim_letters = stim_combos(n_stim,:);
+            for probe_letter = 1:n_input_chans
+                for n_trial = 1:n_trials_per_stim
+                    trial_idx = trial_idx + 1;
+                    [u,label,~, ~] = generate_letters_stim(T, stim_on, stim_dur, delay, ...
+                        task_load, stim_letters, probe_letter, match);
 
-        for n_trial = 1:n_trials
-            probe_letter = NaN;
-            if n_trial <= round(n_trials/2) % want half trials match, half mismatch
-                match = true;
-            else
-                match = false;
-            end
+                    [~, ~, ~, ~, ~, out, params] = LIF_network_fnc(curr_mat, opt_scaling_factor,...
+                        u, stims, down_sample, use_initial_weights, use_smoothing);
 
-            [u,label,stim_letters, probe_letter] = generate_letters_stim(T, stim_on, stim_dur, delay, ...
-                task_load, probe_letter, match);
+                    stim_letters_all(trial_idx, :) = stim_letters;
+                    probe_letters_all(trial_idx) = probe_letter;
 
-            [~, ~, ~, ~, ~, out, params] = LIF_network_fnc(curr_mat, opt_scaling_factor,...
-                u, stims, down_sample, use_initial_weights, use_smoothing);
-
-            stim_letters_all(n_trial, :) = stim_letters;
-            probe_letters_all(n_trial) = probe_letter;
-
-            if label == 1
-                if max(out(response_time*100:end)) > 0.7
-                    perf(n_trial) = 1;
+                    if label == 1
+                        if max(out(response_time*100:end)) > 0.7
+                            perf(trial_idx) = 1;
+                        end
+                    elseif label == -1
+                        if min(out(response_time*100:end)) < -0.7
+                            perf(trial_idx) = 1;
+                        end
+                    end
+                    labels(trial_idx) = label;
+                    ipscs_temp = params.IPSCs; % temp store all IPSCs from trials w this probe
+        
+                    % now downsample to fs_downsamp
+                    ipscs_ds = downsample_signal(T_spk, T_spk/fs_spk*fs_downsamp, ipscs_temp);
+                    ipscs_all(trial_idx, 1, :) = mean(ipscs_ds(exc,:));
+                    ipscs_all(trial_idx, 1, :) = mean(ipscs_ds(inh,:));
+                    clear ipscs_temp , ipscs_ds, params
                 end
-            elseif label == -1
-                if min(out(response_time*100:end)) < -0.7
-                    perf(n_trial) = 1;
-                end
             end
-            labels(n_trial) = label;
-            ipscs_temp = params.IPSCs; % temp store all IPSCs from trials w this probe
-
-            % now downsample to fs_downsamp
-            ipscs_all(n_trial, :, :) = downsample_signal(T_spk, T_spk/fs_spk*fs_downsamp, ipscs_temp);
-            clear ipscs_temp params
         end
 
         ipscs_match = squeeze(mean(ipscs_all(labels == 1,:,:),1));

@@ -407,7 +407,7 @@ def plot_band_power_bootstrap(band_trials1, band_trials2, t, nboot=1000, CI_int=
     elif len(time_range) == 0:
         time_start_idx = 0
         time_end_idx = len(t)
-
+    
     # plot band powers separately, with each band as a subplot
     fig, axs = plt.subplots(len(band_trials1),1,figsize=(10,18))
     for j, band in enumerate(band_trials1.keys()):
@@ -430,13 +430,13 @@ def plot_band_power_bootstrap(band_trials1, band_trials2, t, nboot=1000, CI_int=
 
         time_vector = np.array(range(0, len(t1_avg)))
         significant_timepoints = time_vector[p_diff < p_sig]
-        visible_y = np.append(t1_CI[:,1][time_start_idx:time_end_idx], t2_CI[:,1][time_start_idx:time_end_idx]).flatten()
+        visible_y = np.append(t1_CI[:,:][time_start_idx:time_end_idx], t2_CI[:,:][time_start_idx:time_end_idx]).flatten()
         if len(visible_y):
             axs[j].set_ylim(np.amin(visible_y), np.max(visible_y))
         ymin, ymax = axs[j].get_ylim()
         axs[j].scatter(significant_timepoints,
                         np.zeros_like(significant_timepoints) + ymax + (ymax-ymin)/10, color='k', label='_nolegend_', marker='s', s=25)
-        axs[j].set_ylim(0, ymax + (ymax-ymin)/5)
+        axs[j].set_ylim(ymin - (ymax-ymin)/10, ymax + (ymax-ymin)/5)
 
         if j == len(band_trials1)-1:
             axs[j].set_xlabel('time (s)')
@@ -516,8 +516,8 @@ def compare_two_spect_groups_bootstrap(f, t, s_trials1, s_trials2, plot=1,
                         axs[j].set_ylim(np.amin(visible_y), np.max(visible_y))
                     ymin, ymax = axs[j].get_ylim()
                     axs[j].scatter(significant_timepoints,
-                                    np.zeros_like(significant_timepoints) + ymax + (ymax-ymin)/10, color='k', label='_nolegend_', marker='s', s=10)
-                    axs[j].set_ylim(0, ymax + (ymax-ymin)/5)
+                                    np.zeros_like(significant_timepoints) + ymax + (ymax-ymin)/10, color='k', label='_nolegend_', marker='s', s=25)
+                    axs[j].set_ylim(ymin-(ymax-ymin)/5, ymax + (ymax-ymin)/5)
             axs[j].set_xlabel('time (s)')   
                  
         if len(title) > 0:

@@ -37,6 +37,4 @@ end
 u(stim_letters, stim_on:stim_on+stim_dur) = 1; % stimulus presentation
 u(probe_letter, stim_on+stim_dur+delay:end) = 1; % probe presentation
 
-
-
 end
