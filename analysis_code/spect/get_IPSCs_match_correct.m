@@ -63,10 +63,10 @@ for n_load = 1:length(task_loads) % for this load
 
         save_name = [save_dir, 'IPSC_match_correct_delay', num2str(delay),'_nonorm_',mat_files(i).name];
         % check if there are IPSCs calculated already
-        % if exist(save_name, 'file') > 0
-        %     disp('IPSCs already calculated, moving to next model...')
-        %     continue
-        % end
+        if exist(save_name, 'file') > 0
+            disp('IPSCs already calculated, moving to next model...')
+            continue
+        end
 
         % input stim info
         task_load = task_loads(n_load);
