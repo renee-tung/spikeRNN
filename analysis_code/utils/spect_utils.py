@@ -69,7 +69,6 @@ def calc_band_power_bootstrap(s1, s2, f, band='all', nboot=1000, CI_int=(2.5, 97
         band_avg = {}
         for band in band_ranges:
             f_band_idx = np.where((f >= band_ranges[band][0]) & (f <=band_ranges[band][1]))[0]
-            
             t1_avg, t1_CI, t2_avg, t2_CI, _, _, p_diff = fnc_time_bootstrap_optimized_retX(np.squeeze(np.nanmean(s1[:,f_band_idx,:], axis=1)), 
                                                                   np.squeeze(np.nanmean(s2[:,f_band_idx,:], axis=1)), 
                                                                   nboot, CI_int, random_seed=random_seed)
