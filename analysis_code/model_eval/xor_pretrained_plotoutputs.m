@@ -99,6 +99,7 @@ for n_type = 1:length(models_types) % good and bad models
     xline(stim2_onset, 'Color','k','LineWidth',2)
     xline(stim2_offset, 'Color','k','LineWidth',2)
     title(['mean performance: ', num2str(mean(eval_perf))])
+    saveas(gcf, [models_type,'_output.svg'],'svg')
 
 
     % eval_perf_mean = eval_perf_mean_all;
