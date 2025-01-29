@@ -90,12 +90,34 @@ for n_type = 1:length(models_types) % good and bad models
         label_array(i) = eval_label == "same";
         o_array(i,:) = eval_o;
     end
+    
+    if n_type == 1 % 1 is good
+        plotcolor1 = [0,0.478,0.478,0.5];%"#007a7a";
+        plotcolor2 = [0,0.278, 0.278,0.5];%"#004747";
+    elseif n_type == 2 % 2 is bad
+        plotcolor1 = [0.478,0,0.478,0.5];%"#7a007a";
+        plotcolor2 = [0.278,0,0.278,0.5]; %"#470047";
+    end
+    
+    fs_ds = 1000;
+    o_array = downsample_signal(fs_spk, fs_ds, o_array);
 
-    figure; hold on;
-    plot(o_array(label_array == 1,:)', 'Color', [1,0,0,0.5])
-    plot(o_array(label_array == 0,:)', 'Color', [0,0,1,0.5])
-    axv
-    title(['mean performance: ', num2str(mean(eval_perf))])
+    figure('Position',[10 10 900 600]); hold on;
+    plot(o_array(label_array == 1,:)', 'Color', plotcolor1);
+    plot(o_array(label_array == 0,:)', 'Color', plotcolor2); 
+    xline(stim1_offset/fs_spk*fs_ds, 'Color','k','LineWidth',2)
+    xline(stim2_onset/fs_spk*fs_ds, 'Color','k','LineWidth',2)
+    xline(stim2_offset/fs_spk*fs_ds, 'Color','k','LineWidth',2)
+    title(['High-performing model, mean performance: ', num2str(mean(eval_perf))])
+    xlabel('Time (ms)')
+    x = 0:500:length(o_array);
+    xticks(x)
+    xticklabels(x/fs_spk*1000/fs_ds)
+    ylabel('Output')
+    fontsize(16,"points")
+    ylim([-3 3])
+
+    saveas(gcf, [models_type,'_output.svg'],'svg')
 
 
     % eval_perf_mean = eval_perf_mean_all;
