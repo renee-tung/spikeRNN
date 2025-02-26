@@ -13,7 +13,7 @@ clear; clc;
 
 current_path = pwd;
 
-task_path = '/home/nuttidalab/Documents/spikeRNN/models/DMS_OSF';
+task_path = '/scratch/spikeRNN/models/DMS_OSF';
 mat_files = return_stable(task_path, '*Taus*', 0.95, 'xor');
 model_name = mat_files{3};
 model_path = fullfile(task_path, model_name);
@@ -79,18 +79,20 @@ plot(mean_outs(3, :), 'linewidth', 2, 'Color', 'c');
 plot(mean_outs(4, :), 'linewidth', 2, 'Color', 'm');
 
 N_tr = size(outs, 2);
-ax = squeeze(mean(all_rs(1:N_tr,   :, 51:end)));   % -1 -1 
+ax = squeeze(mean(all_rs(1:N_tr,   :, 51:end)));   % -1 -1   
 ay = squeeze(mean(all_rs(N_tr+1:N_tr*2,  :, 51:end)));  % -1 1
 bx = squeeze(mean(all_rs(N_tr*2+1:N_tr*3, :, 51:end)));  % 1 -1
 by = squeeze(mean(all_rs(N_tr*3+1:end, :, 51:end)));  % 1 1
+% ^ originally trials x neurons x time; 51:end to cut off beginning time
+% segment; take mean over trials so becomes neurons x time for each condition
 
 trial_dur = size(ax, 2);
 
-combined_data = [ax, ay, bx, by];
+combined_data = [ax, ay, bx, by]; % neurons x time (concatenated)
 
-W = pca(combined_data');
+W = pca(combined_data'); % pca on time x neurons; becomes 200 x 200 (neurons x PCs)
 
-Z = combined_data'*W;
+Z = combined_data'*W; % timexneurons @ neuronsxPCs -> timexPCs
 comps = [1, 2, 3];
 
 figure('Units', 'Normalized', 'Outerposition', [0 0 0.20 0.40]);

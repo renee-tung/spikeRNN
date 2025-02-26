@@ -15,7 +15,7 @@ current_path = pwd;
 % Update model_path to point where the trained model is
 % model_path = '/Users/Renee/Downloads/spikeRNN/models/go-nogo/P_rec_0.2_Taus_4.0_20.0';
 
-task_dir = '/home/nuttidalab/Documents/spikeRNN/models/DMS_OSF';
+task_dir = '/scratch/spikeRNN/models/DMS_OSF';
 
 % Use Robert func to get good models
 task_type = 'xor';
@@ -156,6 +156,7 @@ end
 
 % Make big matrix & PCA
 time_cutoff = 51;
+% time_cutoff = 201;
 ax = squeeze(mean(all_rs(1:n_trials,   :, time_cutoff:end)));   % -1 -1 (ORANGE) NOW (MAGENTA)
 ay = squeeze(mean(all_rs(n_trials+1:n_trials*2,  :, time_cutoff:end)));  % -1 1 (RED) NOW (CYAN)
 bx = squeeze(mean(all_rs(n_trials*2+1:n_trials*3, :, time_cutoff:end)));  % 1 -1 (PURPLE) NOW (BLUE)
@@ -186,13 +187,16 @@ labels = ["-1/-1","-1/+1","+1/-1","+1/+1"];
 figure; hold on; view(3);
 for i = 1:4
 
-    h = plot3(pcs(:,i,1)', pcs(:,i,2)', pcs(:,i,3)','color',colors(i)); 
+    h = plot3(pcs(:,i,1)', pcs(:,i,2)', pcs(:,i,3)','color',colors(i), 'LineWidth',2); 
     set(h,{'DisplayName'},{labels(i)})
-    h = scatter3(pcs(stim1_onset-time_cutoff,i,1), pcs(stim1_onset-time_cutoff,i,2), pcs(stim1_onset-time_cutoff,i,3), 100, 'filled', colors(i),'<');
+    h = scatter3(pcs(stim1_onset-time_cutoff,i,1), pcs(stim1_onset-time_cutoff,i,2), pcs(stim1_onset-time_cutoff,i,3), ...
+        100, 'filled', colors(i),'<', 'SizeData',500);
     set(h,{'DisplayName'},{'stim 1 onset'})
-    h = scatter3(pcs(stim2_onset-time_cutoff,i,1), pcs(stim2_onset-time_cutoff,i,2), pcs(stim2_onset-time_cutoff,i,3), 100, 'filled', colors(i));
+    h = scatter3(pcs(stim2_onset-time_cutoff,i,1), pcs(stim2_onset-time_cutoff,i,2), pcs(stim2_onset-time_cutoff,i,3), ...
+        100, 'filled', colors(i), 'SizeData',300);
     set(h,{'DisplayName'},{'stim 2 onset'})
-    h = scatter3(pcs(end,i,1), pcs(end,i,2), pcs(end,i,3), 100, 'filled', colors(i),'pentagram');
+    h = scatter3(pcs(end,i,1), pcs(end,i,2), pcs(end,i,3), ...
+        100, 'filled', colors(i),'pentagram', 'SizeData',500);
     set(h,{'DisplayName'},{'end'})
 
 end

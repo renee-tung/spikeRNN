@@ -15,7 +15,7 @@ current_path = pwd;
 
 % Update model_path to point where the trained model is
 
-task_dir = '/home/nuttidalab/Documents/spikeRNN/models/DMS_OSF';
+task_dir = '/scratch/spikeRNN/models/DMS_OSF';
 models_type = 'good_models';
 
 cd(task_dir)
@@ -718,6 +718,24 @@ for i_phase = 1:n_phase
 end
 
 %% plot dynamics of 25 avg'd trials of each type
+
+model_name = stable_mods{1};
+    
+% make a folder for the model
+cd(task_dir)
+if ~exist(model_name(1:(end-4)), 'dir')
+    mkdir(model_name(1:(end-4)))
+end
+model_dir_path = strcat(task_dir,'/',model_name(1:(end-4)));
+cd(current_path)
+
+file_path = fullfile(task_dir, model_name);
+load(file_path);
+scaling_factor = opt_scaling_factor;
+stims = struct();
+stims.mode = 'none';
+down_sample=1;
+use_initial_weights = false;
 
 T = 411;
 stim_on = 31;

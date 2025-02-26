@@ -15,7 +15,7 @@ current_path = pwd;
 
 % Update model_path to point where the trained model is
 
-task_dir = '/home/nuttidalab/Documents/spikeRNN/models/DMS_OSF';
+task_dir = '/scratch/spikeRNN/models/DMS_OSF';
 models_type = 'good_models';
 
 cd(task_dir)
@@ -227,7 +227,7 @@ end
 %% get 30 trials of each type and save (for PACs)
 
 normalize_ipscs = 1;
-lesion_connections = 0; % if not lesioning put 0, else 'ii' etc
+lesion_connections = 'ii'; % if not lesioning put 0, else 'ii' etc
 longer_delay = ''; % '' if standard delay (150), else a number (eg 200, 250)
 
 models_types = {'good_models';'bad_models'};
@@ -275,10 +275,10 @@ for n_type = 1:length(models_types)
         save_name = [model_dir_path,'/','IPSCs_30trall',norm_name,lesion_name,num2str(longer_delay),'.mat'];
 
         % check if there are IPSCs calculated already
-        % if exist(save_name, 'file') > 0
-        %     disp('already calculated, moving to next model...')
-        %     continue
-        % end
+        if exist(save_name, 'file') > 0
+            disp('already calculated, moving to next model...')
+            continue
+        end
 
         file_path = fullfile(task_dir, model_name);
         load(file_path);
@@ -336,17 +336,19 @@ for n_type = 1:length(models_types)
             end
             
             ipscs_temp = params.IPSCs;
-                if normalize_ipscs
-                    if i==1
-                        disp('normalizing IPSCs...')
-                    end
-                    ipscs_mean = mean(ipscs_temp(:,baseline_onset:stim1_onset),2); 
-                    ipscs_std = std(ipscs_temp(:,baseline_onset:stim1_onset),0, 2);
+            if normalize_ipscs
+                if i==1
+                    disp('normalizing IPSCs...')
+                end
+                ipscs_mean = mean(ipscs_temp(:,baseline_onset:stim1_onset),2);
+                ipscs_std = std(ipscs_temp(:,baseline_onset:stim1_onset),0, 2);
+                if ipscs_std ~= 0
                     ipscs_temp = (ipscs_temp-ipscs_mean)./ipscs_std; % zscore by baseline period
                 end
-            if any(isnan(ipscs_samepos))
+            end
+            if any(isnan(ipscs_temp))
                 disp('there are nans')
-                
+            end
             ipscs_samepos(:,:,i) = ipscs_temp;
             
             clear params
@@ -371,18 +373,23 @@ for n_type = 1:length(models_types)
                 [~, ~, ~, ~, ~, ~, params] = LIF_network_fnc(file_path, scaling_factor,...
                     u, stims, ds, use_initial_weights);
             end
-            
+
             ipscs_temp = params.IPSCs;
-                if normalize_ipscs
-                    if i==1
-                        disp('normalizing IPSCs...')
-                    end
-                    ipscs_mean = mean(ipscs_temp(:,baseline_onset:stim1_onset),2); 
-                    ipscs_std = std(ipscs_temp(:,baseline_onset:stim1_onset),0, 2);
+            if normalize_ipscs
+                if i==1
+                    disp('normalizing IPSCs...')
+                end
+                ipscs_mean = mean(ipscs_temp(:,baseline_onset:stim1_onset),2);
+                ipscs_std = std(ipscs_temp(:,baseline_onset:stim1_onset),0, 2);
+                if ipscs_std ~= 0
                     ipscs_temp = (ipscs_temp-ipscs_mean)./ipscs_std; % zscore by baseline period
                 end
+            end
+            if any(isnan(ipscs_temp))
+                disp('there are nans')
+            end
             ipscs_sameneg(:,:,i) = ipscs_temp;
-            
+
             clear params
         end
 
@@ -711,6 +718,20 @@ for i_phase = 1:n_phase
 end
 
 %% plot dynamics of 25 avg'd trials of each type
+
+model_name = stable_mods{1};
+    
+% make a folder for the model
+cd(task_dir)
+if ~exist(model_name(1:(end-4)), 'dir')
+    mkdir(model_name(1:(end-4)))
+end
+model_dir_path = strcat(task_dir,'/',model_name(1:(end-4)));
+cd(current_path)
+
+file_path = fullfile(task_dir, model_name);
+load(file_path);
+
 
 T = 411;
 stim_on = 31;

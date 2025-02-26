@@ -19,7 +19,7 @@ current_path = pwd;
 % mat_file = dir(fullfile(model_path, '*.mat'));
 % model_name = mat_file(1).name;
 
-model_path = '/home/nuttidalab/Documents/spikeRNN/models/xor/P_rec_0.2_Taus_4.0_25.0';
+model_path = '/scratch/spikeRNN/models/xor/P_rec_0.2_Taus_4.0_25.0';
 mat_file = dir(fullfile(model_path, '*.mat'));
 model_name = mat_file(3).name; % to change which model
 
