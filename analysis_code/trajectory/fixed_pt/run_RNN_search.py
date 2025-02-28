@@ -55,7 +55,7 @@ def main():
 	# Step 1: Take a pre-trained network
 	stim_on = 200
 	stim_dur = 50
-	delay=10
+	delay=50
 	T = 500  
 
 	# modality_type = 'bad_models'
@@ -101,43 +101,27 @@ def main():
 
 	for task_type in task_types:
 		# Getting initial conditions for fixed point optimization at the end of the instruction period
-		delay_times = np.arange(stim_on+stim_dur,stim_on+stim_dur+delay) # Maintenance
-		# Selecting trials from this particular trial type 
-		xx_trials_delay = xx_trials[trial_stim_labels[:,0] == task_type,:,:][:,delay_times,:]
-		# if task_type == 'null':			
-		# 	instr_t_id = 1
-		# 	type_trials = instr_t_trials[0,:] == instr_t_id
-		# elif task_type == 'pro':
-		# 	type_id = 1
-		# 	instr_t_id = -1
-		# 	type_trials = np.logical_and(instr_amp_trials[0,:] == type_id, instr_t_trials[0,:] == instr_t_id)
-		# if task_type == 'anti':
-		# 	type_id = -1
-		# 	instr_t_id = -1
-		# type_trials = np.logical_and(instr_amp_trials[0,:] == type_id, instr_t_trials[0,:] == instr_t_id)
-		# xx_trials_instr = xx_trials[type_trials,:,:][:,instr_times,:]
 		
+		stim1_times = np.arange(stim_on,stim_on+stim_dur)
+		delay_times = np.arange(stim_on+stim_dur,stim_on+stim_dur+delay) # Maintenance
+		
+		# Selecting trials from this particular trial type 
+		xx_trials_stim1 = xx_trials[trial_stim_labels[:,0] == task_type,:,:][:,stim1_times,:]
+		xx_trials_delay = xx_trials[trial_stim_labels[:,0] == task_type,:,:][:,delay_times,:]
 		
 		# Selecting a random number of initial conditions from eligible points
 		n_initial = 200
 		initial_states = np.zeros((n_initial,xx_trials_delay.shape[2])) # n_initial x nNeurons
-		# initial_states2 = np.zeros((n_initial,xx_trials_delay.shape[2]))
 		for iI in np.arange(n_initial):
 			rand_trial = np.random.randint(xx_trials_delay.shape[0]) 		
 			rand_time = np.random.randint(xx_trials_delay.shape[1])
 			initial_states[iI,:] = xx_trials_delay[rand_trial,-1,:]
-			#initial_states2[iI,:] = ic_data['initial_conditions'][0][0][0][iI,:]	
-
+			
 		# Initializing input vector u
-		inputs = np.zeros((2, T))
+		inputs = np.zeros((1, 2))
 
 		# Choosing input vector u for each trial type/modality type		
-		inputs[0, stim_on:stim_on+stim_dur] = task_type
-		inputs[1, stim_on+stim_dur+delay:stim_on+2*stim_dur+delay] = task_type
-		# if task_type == '+1':
-		# 	inputs[0, stim_on:stim_on+stim_dur] = 1
-		# elif task_type == '-1':
-		# 	inputs[0, stim_on:stim_on+stim_dur] = -1
+		inputs[0, 0] = 0 # no input during maintenance
 				
 		# Defining and running fixed point optimization
 		fpf = FixedPointFinder(model, **fpf_hps)
