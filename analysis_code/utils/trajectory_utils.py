@@ -9,6 +9,8 @@ import sys
 import pickle as pk
 import torch
 from sklearn.decomposition import PCA
+from matplotlib.colors import ListedColormap
+from scipy.interpolate import interp1d
 
 sys.path.append('/home/nuttidalab/Documents/spikeRNN/rate/')
 # import model
@@ -109,9 +111,9 @@ def generate_synX(model_dir, settings,
     if save:
         if len(save_flag) == 0:
             np.save(f'{model_results_dir}delay{settings["delay"]}_synX.npy', synX)
+            np.save(f'{model_results_dir}trial_stim_labels.npy', trial_stim_labels)
         else:
             np.save(f'{model_results_dir}delay{settings["delay"]}_synX_{save_flag}.npy', synX)
-        np.save(f'{model_results_dir}trial_stim_labels.npy', trial_stim_labels)
 
     return synX, trial_stim_labels
 
@@ -332,6 +334,21 @@ def get_period_pca(xx_trials,period,settings,nComponents):
 	return pca_period
 
 
+def get_landscape_cmap():
+    # Custom colormap
+    hex_colors =['#1a2650', '#7185cf','#ff4242', '#6b0000'];  # light green, dark green, light purple, dark purple
+    minima_colors =['#ffffff','#5a2b79', '#1f6136','#85b89f', '#b583ba']; 
+    vec = [100, 50, 25, 0]
+
+    raw_colors = np.array([tuple(int(hex_color.lstrip('#')[i:i + 2], 16) for i in (0, 2, 4)) for hex_color in hex_colors]) / 255
+
+    N = 256
+    interp_values = np.linspace(100, 0, N)
+    interp_colors = np.array([interp1d(vec, raw_colors[:, i], axis=0)(interp_values) for i in range(3)]).T
+
+    cmap = ListedColormap(interp_colors)
+    return cmap, minima_colors
+
 
 def plot_energy_landscape(RNN_model_file, settings,
                           models_dir = '/scratch/spikeRNN/models/DMS_OSF/',
@@ -365,6 +382,7 @@ def plot_energy_landscape(RNN_model_file, settings,
     stim_names = ['+1','-1']
 
     fig, axs = plt.subplots(1, len(stim_condns),sharey=True, figsize=(10,4))
+    cmap, minima_colors = get_landscape_cmap()
     for plotI, stim1 in enumerate(stim_condns):
         # Creating a 2d grid over PC space to plot different qs
         nComponents = 2
@@ -384,8 +402,9 @@ def plot_energy_landscape(RNN_model_file, settings,
                 qMatrix[i,j] = tu.q_fun(x_real, taus_sig, ww, w_in, u)
         # Getting minimum energy point    
         min_idx = np.unravel_index(np.argmin(qMatrix),qMatrix.shape)
-        im = axs[plotI].imshow(np.log(qMatrix).T, extent=[xVec[0],xVec[-1],yVec[-1],yVec[0]], vmin=-4, vmax=4)
-        axs[plotI].plot(xVec[min_idx[0]],yVec[min_idx[1]],'rx')
+        im = axs[plotI].imshow(np.log(qMatrix).T, extent=[xVec[0],xVec[-1],yVec[-1],yVec[0]], 
+                               vmin=-4, vmax=4, cmap=cmap)
+        axs[plotI].plot(xVec[min_idx[0]],yVec[min_idx[1]],'x', c=minima_colors[plotI])
         axs[plotI].set_title(f'{stim_names[plotI]}')
 
     divider = make_axes_locatable(axs[-1])
@@ -420,18 +439,120 @@ def plot_energy_landscape_over_null(RNN_model_file, settings,
         xx_trials, trial_stim_labels = generate_synX(rnn_path, settings, 
                                 save=1, model_results_dir = model_results_dir)
     else:
-        # print('Loading synX')
+        print('Loading synX')
         xx_trials = np.load(f'{model_results_dir}delay{settings["delay"]}_synX.npy')
         trial_stim_labels = np.load(f'{model_results_dir}trial_stim_labels.npy')
     
-    # if not os.path.exists(f'{model_results_dir}delay{settings["delay"]}_synX_null.npy'):
-    #     print('Generating synX')
-    #     xx_trials_null, _ = tu.generate_synX(rnn_path, settings, 
-    #                             save=1, model_results_dir = model_results_dir)
-    # else:
-    #     print('Loading synX')
-    #     xx_trials_null = np.load(f'{model_results_dir}delay{settings["delay"]}_synX_null.npy')
-    #     trial_stim_labels = np.load(f'{model_results_dir}trial_stim_labels.npy')
+    if not os.path.exists(f'{model_results_dir}delay{settings["delay"]}_synX_null.npy'):
+        print('Generating synX null')
+        xx_trials_null, _ = tu.generate_synX(rnn_path, settings, 
+                                model_results_dir = model_results_dir,
+                                stim1s=[0], stim2s=[-1,1],
+                                n_trials=500, save=1, save_flag='null')
+    else:
+        print('Loading synX null')
+        xx_trials_null = np.load(f'{model_results_dir}delay{settings["delay"]}_synX_null.npy')
+        # # regenerate trial_stim_labels woops
+        # n_trials = xx_trials.shape[0]
+        # trial_stim_labels = np.zeros((n_trials,2))
+        # n_trials_per_condition = int(n_trials/4)
+        # stim1s = [-1, 1]
+        # stim2s = [-1, 1]
+        # for i, stim1 in enumerate(stim1s):
+        #     for j, stim2 in enumerate(stim2s):
+        #         for k in range(n_trials_per_condition):
+        #                 trial_idx = (i*len(stim2s)+j)*n_trials_per_condition + k
+        #                 trial_stim_labels[trial_idx,0] = stim1
+        #                 trial_stim_labels[trial_idx,1] = stim2
+        # np.save(f'{model_results_dir}trial_stim_labels.npy', trial_stim_labels)
+
+    rnn_data = scipy.io.loadmat(models_dir + RNN_model_file)
+    # Loading model parameters
+    taus_gaus = torch.tensor(rnn_data['taus_gaus'])
+    taus = torch.tensor(rnn_data['taus'][0])
+    w = torch.tensor(rnn_data['w'])
+    m = torch.tensor(rnn_data['m'])
+    w_in = torch.tensor(rnn_data['w_in'])
+    taus_sig = torch.sigmoid(taus_gaus)*(taus[1] - taus[0]) + taus[0] # Neural time constant
+    ww = torch.matmul(w, m) # Recurrent weight matrix
+    
+    stim_condns = [0, 1, -1]
+    stim_names = ['both', '+1','-1']
+    markers = ['rx','mx']
+
+    n_minima = len(stim_condns)-1
+    minima = np.zeros((n_minima,2))
+    # fig, axs = plt.subplots(1, len(stim_condns),sharey=True, figsize=(10,4))
+    cmap, minima_colors = get_landscape_cmap()
+    for plotI, stim1 in enumerate(stim_condns):
+        # Creating a 2d grid over PC space to plot different qs
+        nComponents = 2
+        if stim1 == 0: # get the null stimulus landscape
+            pca_period = get_period_pca(xx_trials_null,'delay',settings, nComponents)
+        else:
+            pca_period = get_period_pca(xx_trials[trial_stim_labels[:,0] == stim1,:,:],'delay',settings, nComponents)
+
+        # PC space grid 
+        res = 100
+
+        xVec = np.linspace(xVec_lim[0],xVec_lim[1],res)
+        yVec = np.linspace(yVec_lim[0],yVec_lim[1],res)
+    
+        u = torch.tensor([0,0], dtype=torch.float32) # current stim is always 0 bc delay
+        qMatrix = np.zeros((res,res))            
+        for i in np.arange(res):
+            for j in np.arange(res):
+                x_real = torch.tensor(pca_period.inverse_transform([xVec[i],yVec[j]]))
+                qMatrix[i,j] = tu.q_fun(x_real, taus_sig, ww, w_in, u)
+        # Getting minimum energy point    
+        min_idx = np.unravel_index(np.argmin(qMatrix),qMatrix.shape)
+        minima[plotI-1,:] = [xVec[min_idx[0]],yVec[min_idx[1]]]
+        if plot:
+            if stim1 == 0:
+                im = plt.imshow(np.log(qMatrix).T, extent=[xVec[0],xVec[-1],yVec[-1],yVec[0]], 
+                                cmap=cmap, vmin=-4, vmax=4)
+            else:
+                plt.plot(xVec[min_idx[0]],yVec[min_idx[1]], markers[plotI-1], #'x',c=minima_colors[plotI],
+                         label=f'{stim_names[plotI]}')
+    
+    dist = np.linalg.norm(minima[0]-minima[1])
+    if plot:       
+        cbar=plt.colorbar(im)
+        cbar.set_label('log(Energy)')
+        plt.legend()
+        plt.xlabel('PC1')
+        plt.ylabel('PC2')
+        if len(title) > 0:
+            title_dist = f'{title}, distance: {dist:.2f}'
+            plt.title(title_dist)
+        else:
+            plt.title(f'Energy landscape for {RNN_model_file[-4]}')
+
+        # figname = '/home/nuttidalab/Documents/spikeRNN/results/2025_SRD/bad_model_landscape.svg'
+        # print(figname)
+        # plt.savefig(figname, format='svg')
+
+        plt.show()
+
+    return minima, dist
+
+def plot_energy_landscape_over_combined(RNN_model_file, settings,
+                          models_dir = '/scratch/spikeRNN/models/DMS_OSF/',
+                          xVec_lim=[-25,25], yVec_lim=[-15,40], res=100,
+                          plot=1, title=[]):
+    '''
+    '''
+    model_results_dir = f'{models_dir}{RNN_model_file[:-4]}/'
+    rnn_path = os.path.join(models_dir, RNN_model_file) 
+
+    if not os.path.exists(f'{model_results_dir}delay{settings["delay"]}_synX.npy'):
+        print('Generating synX')
+        xx_trials, trial_stim_labels = generate_synX(rnn_path, settings, 
+                                save=1, model_results_dir = model_results_dir)
+    else:
+        # print('Loading synX')
+        xx_trials = np.load(f'{model_results_dir}delay{settings["delay"]}_synX.npy')
+        trial_stim_labels = np.load(f'{model_results_dir}trial_stim_labels.npy')
 
     rnn_data = scipy.io.loadmat(models_dir + RNN_model_file)
     # Loading model parameters
