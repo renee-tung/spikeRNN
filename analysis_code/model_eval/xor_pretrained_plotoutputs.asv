@@ -62,7 +62,7 @@ for n_type = 1:length(models_types) % good and bad models
     stim1_offset = (stim_on + stim_dur) / fs_rate * fs_spk;
     stim2_onset = (stim_on + stim_dur + delay) / fs_rate * fs_spk;
     stim2_offset = (stim_on + 2 * stim_dur + delay) / fs_rate * fs_spk;
-    % stim2_offset = int64(stim2_offset);
+    stim2_offset = int64(stim2_offset);
 
     % Model eval on 100 random trials for each lesion type
     eval_perf = zeros(n_trials,1); % Store models' performance

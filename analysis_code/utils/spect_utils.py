@@ -619,34 +619,32 @@ def compare_two_spect_groups_bootstrap(f, t, s_trials1, s_trials2, plot=1,
 def plot_band_power_bootstrap(band_trials1, band_trials2, t, nboot=1000, CI_int=(2.5, 97.5), random_seed=820,
                               adjust_bands2=False, baseline_idx=[],
                               type1_label='exc neurons', type2_label='inh neurons', p_sig=0.05, title = [],
-                              stim_on=0, stim_off=0, probe=0, rt1=np.nan, rt2=np.nan, t_skip=5, 
+                              event_times = [], 
+                              rt1=np.nan, rt2=np.nan, t_skip=5, 
                               band_range = [], time_range = [], c = []):
-    
-    # band_trials is a dict with keys as bands and values as the band power (trials x time)
-    # f is the frequency vector
-    # t is the time vector
+    '''
+    band_trials is a dict with keys as bands and values as the band power (trials x time)
+    f is the frequency vector
+    t is the time vector
+    event_times if given, is a dict with keys as event names and values as the time of the event
+    rt1 and rt2 are the response times for the two trial types (if exists)
+    band_range is a list of two numbers, the range of the y-axis for the band power plots
+    time_range is a list of two numbers, the range of the x-axis for the band power plots
+    c is a list of colors for the two trial types
+    '''
 
     type_label = [type1_label,type2_label]
     if len(c) == 0:
         c = ['b','g','r','c','m','y','k']
-
-    fft_times = {
-        'stim_on_idx': np.where(t <= stim_on)[0][-1],
-        'stim_off_idx': np.where(t <= stim_off)[0][-1],
-        'probe_idx': np.where(t <= probe)[0][-1],
-        # 'response_idx': np.where(t <= response)[0][-1]
-    }
-
-    times = ld.get_real_event_times()
     
 
     if len(time_range) == 2:
-        time_start = [time_range[0] if ~np.isnan(time_range[0]) else times['fixation']][0]
+        time_start = [time_range[0] if ~np.isnan(time_range[0]) else t[0]][0]
         time_end = [time_range[1] if ~np.isnan(time_range[1]) else t[-1]][0]
         # time_start_idx = [np.where(t <= time_range[0])[0][-1] if ~np.isnan(time_range[0]) else 0][0]
         # time_end_idx = [np.where(t <= time_range[1])[0][-1] if ~np.isnan(time_range[1]) else len(t)][0]
     elif len(time_range) == 0:
-        time_start = times['fixation']
+        time_start = t[0]
         time_end = t[-1]
     
     # plot band powers separately, with each band as a subplot
@@ -673,11 +671,10 @@ def plot_band_power_bootstrap(band_trials1, band_trials2, t, nboot=1000, CI_int=
         # tick_labels = np.round(t[::t_skip],3)
         # axs[j].set_xticks(tick_positions)
         # axs[j].set_xticklabels(tick_labels)
-        axs[j].set_xticks(np.arange(times['fixation'],times['end'],1))
+        # axs[j].set_xticks(np.arange(times['fixation'],times['end'],1))
         axs[j].set_title(f'{band} band power')
-        axs[j].axvline(x=stim_on, color='r', linestyle='--')
-        axs[j].axvline(x=stim_off, color='r', linestyle='--')
-        axs[j].axvline(x=probe, color='r', linestyle='--')
+        for key in event_times:
+            axs[j].axvline(x=event_times[key], color='r', linestyle='--')
         axs[j].set_xlim([time_start, time_end])
         if ~np.isnan(rt1):
             # axs[j].axvline(x=get_fft_time(rt1, t), color=c[0], linestyle='--', label='Response Time')
@@ -689,7 +686,7 @@ def plot_band_power_bootstrap(band_trials1, band_trials2, t, nboot=1000, CI_int=
         axs[j].set_xlim([time_start, time_end])
         axs[j].legend()
 
-        time_vector = np.array(range(0, len(t1_avg)))
+        # time_vector = np.array(range(0, len(t1_avg)))
         significant_timepoints = t[p_diff < p_sig]
         if j == 0:
             ymin, ymax = axs[j].get_ylim()
