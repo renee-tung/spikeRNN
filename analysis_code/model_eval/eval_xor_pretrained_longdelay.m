@@ -202,7 +202,7 @@ for i = 1:4
 end
 
 legend show
-saveas(gcf,[model_dir_path '/trajectories_delay150_combinedpca.png'])
+% saveas(gcf,[model_dir_path '/trajectories_delay150_combinedpca.png'])
 
 
 

@@ -562,7 +562,7 @@ def loss_op(o, z, training_params):
 EVALUATE THE TRAINED MODEL
 NOTE: NEED TO BE UPDATED!!
 '''
-def eval_tf(model_dir, settings, u):
+def eval_tf(model_dir, settings, u, lesion='', calc_epsp=False):
     """
     Method to evaluate a trained TF graph
     INPUT
@@ -584,7 +584,7 @@ def eval_tf(model_dir, settings, u):
 
     # Get some additional params
     N = var['N'][0][0]
-    exc_ind = [bool(i) for i in var['exc']]
+    # exc_ind = [bool(i) for i in var['exc']]
 
     # Get the delays
     taus_gaus = var['taus_gaus']
@@ -623,6 +623,20 @@ def eval_tf(model_dir, settings, u):
     inh_ind = np.where(inh == 1)[0]
     som_inh_ind = inh_ind[:som_N]
 
+
+    # lesioning
+    if len(lesion) != 0:
+        lesion_mask = np.ones_like(w)
+        if lesion == 'ii':
+            lesion_mask[np.ix_(inh_ind, inh_ind)] = 0.5
+        elif lesion == 'ei':
+            lesion_mask[np.ix_(exc_ind, inh_ind)] = 0.5
+        elif lesion == 'ie':
+            lesion_mask[np.ix_(inh_ind, exc_ind)] = 0.5
+        elif lesion == 'ee':
+            lesion_mask[np.ix_(exc_ind, exc_ind)] = 0.5
+        w = np.multiply(w, lesion_mask)
+
     for t in range(1, T):
         # next_x is [N x 1]
         ww = np.matmul(w, m)
@@ -638,12 +652,14 @@ def eval_tf(model_dir, settings, u):
                 + np.matmul(var['w_in'], np.expand_dims(u[:, t-1], 1)))) +\
                 np.random.randn(N, 1)/10
         
-        next_epsp = np.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[:, t-1], 1)) + \
-                np.multiply((DeltaT/taus_sig), ((np.matmul(ww[:,exc_ind], np.expand_dims(r[exc_ind, t-1], 1))))) 
-
+        if calc_epsp == True:
+            next_epsp = np.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[:, t-1], 1)) + \
+                    np.multiply((DeltaT/taus_sig), ((np.matmul(ww[:,exc_ind], np.expand_dims(r[exc_ind, t-1], 1))))) 
+            epsp[:, t] = np.squeeze(next_epsp)
+            
         x[:, t] = np.squeeze(next_x)
         r[:, t] = 1/(1 + np.exp(-x[:, t]))
-        epsp[:, t] = np.squeeze(next_epsp)
+        
         # r[:, t] = np.minimum(np.maximum(x[:, t], 0), 1)
         # r[:, t] = np.clip(np.minimum(np.maximum(x[:, t], 0), 1), None, 10)
         # r[:, t] = np.clip(np.log(np.exp(x[:, t])+1), None, 10) # softplus

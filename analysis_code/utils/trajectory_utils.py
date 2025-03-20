@@ -13,8 +13,8 @@ from matplotlib.colors import ListedColormap
 from scipy.interpolate import interp1d
 
 sys.path.append('/home/nuttidalab/Documents/spikeRNN/rate/')
-# import model
-from model import generate_input_stim_xor, eval_tf
+import model as mdl
+# from model import generate_input_stim_xor, eval_tf
 
 sys.path.append('/home/nuttidalab/Documents/spikeRNN/analysis_code/utils/')
 import vis_utils as vu
@@ -48,18 +48,19 @@ def generate_xor_type(T, stim_on, stim_dur, delay, stim1=1, stim2=-1):
      return u, label
 
 
-def get_perf(model_path, settings, n_trials = 100, plot=0):
+def get_perf(model_path, settings, n_trials = 100, plot=0, lesion=''):
     '''
     calculate rate model performance on n_trials trials
     '''
+    importlib.reload(mdl)
     resp_onset = settings['stim_on'] + 2*settings['stim_dur'] + settings['delay']
     eval_amp_threshold = 0.7
     eval_perf = np.zeros(n_trials)
     if plot:
         plt.figure(figsize=(10, 5))
     for i in range(n_trials):
-        u, label = generate_input_stim_xor(settings)
-        _, _, o, _ = eval_tf(model_dir=model_path, settings=settings, u=u)
+        u, label = mdl.generate_input_stim_xor(settings)
+        _, _, o, _ = mdl.eval_tf(model_dir=model_path, settings=settings, u=u, lesion=lesion)
         
         if label == 'same':
             if plot:
@@ -85,7 +86,7 @@ def get_perf(model_path, settings, n_trials = 100, plot=0):
 
 
 def generate_synX(model_dir, settings, 
-                  stim1s = [-1, 1], stim2s = [-1, 1],
+                  stim1s = [-1, 1], stim2s = [-1, 1], lesion = '',
                   n_trials = 1000, save=0, save_flag='', model_results_dir = []):
     '''
     generate trials of synaptic current matrix X for specified stims
@@ -102,18 +103,22 @@ def generate_synX(model_dir, settings,
 
                     u, label = generate_xor_type(settings['T'], settings['stim_on'], 
                                                  settings['stim_dur'], settings['delay'], stim1, stim2)
-                    x, r, o, _ = eval_tf(model_dir=model_dir, settings=settings, u=u)
+                    x, r, o, _ = mdl.eval_tf(model_dir=model_dir, settings=settings, u=u, lesion=lesion)
 
                     synX[trial_idx,:,:] = x.T
                     trial_stim_labels[trial_idx,0] = stim1
                     trial_stim_labels[trial_idx,1] = stim2
 
     if save:
-        if len(save_flag) == 0:
-            np.save(f'{model_results_dir}delay{settings["delay"]}_synX.npy', synX)
-            np.save(f'{model_results_dir}trial_stim_labels.npy', trial_stim_labels)
+        if len(lesion) > 0:
+            lesion_flag = f'_lesion{lesion}'
         else:
-            np.save(f'{model_results_dir}delay{settings["delay"]}_synX_{save_flag}.npy', synX)
+            lesion_flag = ''
+        if len(save_flag) == 0:
+            np.save(f'{model_results_dir}delay{settings["delay"]}_synX{lesion_flag}.npy', synX)
+            np.save(f'{model_results_dir}trial_stim_labels{lesion_flag}.npy', trial_stim_labels)
+        else:
+            np.save(f'{model_results_dir}delay{settings["delay"]}_synX{lesion_flag}_{save_flag}.npy', synX)
 
     return synX, trial_stim_labels
 
@@ -356,6 +361,7 @@ DELAY PERIOD PLOTTING FUNCTIONS
 
 def plot_energy_landscape_delay(RNN_model_file, settings,
                           models_dir = '/scratch/spikeRNN/models/DMS_OSF/',
+                          lesion = '', 
                           xVec_lim=[-25,25], yVec_lim=[-15,40], res=100,
                           suptitle=[]):
     '''
@@ -363,13 +369,18 @@ def plot_energy_landscape_delay(RNN_model_file, settings,
     model_results_dir = f'{models_dir}{RNN_model_file[:-4]}/'
     rnn_path = os.path.join(models_dir, RNN_model_file) 
 
-    if not os.path.exists(f'{model_results_dir}delay{settings["delay"]}_synX.npy'):
+    if len(lesion) > 0:
+        lesion_flag = f'_lesion{lesion}'
+    else:
+        lesion_flag = ''
+
+    if not os.path.exists(f'{model_results_dir}delay{settings["delay"]}_synX{lesion_flag}.npy'):
         print('Generating synX')
         xx_trials, trial_stim_labels = tu.generate_synX(rnn_path, settings, 
                                 save=1, model_results_dir = model_results_dir)
     else:
         print('Loading synX')
-        xx_trials = np.load(f'{model_results_dir}delay{settings["delay"]}_synX.npy')
+        xx_trials = np.load(f'{model_results_dir}delay{settings["delay"]}_synX{lesion_flag}.npy')
         trial_stim_labels = np.load(f'{model_results_dir}trial_stim_labels.npy')
     
     rnn_data = scipy.io.loadmat(models_dir + RNN_model_file)
@@ -381,12 +392,16 @@ def plot_energy_landscape_delay(RNN_model_file, settings,
     w_in = torch.tensor(rnn_data['w_in'])
     taus_sig = torch.sigmoid(taus_gaus)*(taus[1] - taus[0]) + taus[0] # Neural time constant
     ww = torch.matmul(w, m) # Recurrent weight matrix
+    inh = rnn_data['inh']
+    inh_ind = np.where(inh == 1)[0]
+    if lesion == 'ii':
+        ww[inh_ind,inh_ind] *= 0.5
     
     stim_condns = [1, -1]
     stim_names = ['+1','-1']
 
     fig, axs = plt.subplots(1, len(stim_condns),sharey=True, figsize=(10,4))
-    cmap, minima_colors = get_landscape_cmap()
+    cmap, _ = get_landscape_cmap()
     for plotI, stim1 in enumerate(stim_condns):
         # Creating a 2d grid over PC space to plot different qs
         nComponents = 2
@@ -408,7 +423,7 @@ def plot_energy_landscape_delay(RNN_model_file, settings,
         min_idx = np.unravel_index(np.argmin(qMatrix),qMatrix.shape)
         im = axs[plotI].imshow(np.log(qMatrix).T, extent=[xVec[0],xVec[-1],yVec[-1],yVec[0]], 
                                vmin=-4, vmax=4, cmap=cmap)
-        axs[plotI].plot(xVec[min_idx[0]],yVec[min_idx[1]],'x', c=minima_colors[plotI])
+        axs[plotI].plot(xVec[min_idx[0]],yVec[min_idx[1]],'x', c='w')
         axs[plotI].set_title(f'{stim_names[plotI]}')
 
     divider = make_axes_locatable(axs[-1])
@@ -432,32 +447,52 @@ def plot_energy_landscape_delay(RNN_model_file, settings,
 def plot_energy_landscape_over_null_delay(RNN_model_file, settings,
                           models_dir = '/scratch/spikeRNN/models/DMS_OSF/',
                           xVec_lim=[-25,25], yVec_lim=[-15,40], res=100,
-                          plot=1, title=[]):
+                          lesion='', plot=1, title=[]):
     '''
     '''
     model_results_dir = f'{models_dir}{RNN_model_file[:-4]}/'
     rnn_path = os.path.join(models_dir, RNN_model_file) 
 
-    if not os.path.exists(f'{model_results_dir}delay{settings["delay"]}_synX.npy'):
+    if len(lesion) > 0:
+        lesion_flag = f'_lesion{lesion}'
+    else:
+        lesion_flag = ''
+
+    # # running this for now to regenerate all lesion x matrices
+    # print('Generating synX')
+    # xx_trials, trial_stim_labels = generate_synX(rnn_path, settings, 
+    #                         save=1, model_results_dir = model_results_dir, lesion=lesion)
+
+    if not os.path.exists(f'{model_results_dir}delay{settings["delay"]}_synX{lesion_flag}.npy'):
         print('Generating synX')
         xx_trials, trial_stim_labels = generate_synX(rnn_path, settings, 
-                                save=1, model_results_dir = model_results_dir)
+                                save=1, model_results_dir = model_results_dir, lesion=lesion)
     else:
         print('Loading synX')
-        xx_trials = np.load(f'{model_results_dir}delay{settings["delay"]}_synX.npy')
-        trial_stim_labels = np.load(f'{model_results_dir}trial_stim_labels.npy')
+        xx_trials = np.load(f'{model_results_dir}delay{settings["delay"]}_synX{lesion_flag}.npy')
+        trial_stim_labels = np.load(f'{model_results_dir}trial_stim_labels{lesion_flag}.npy')
+
+    if plot:
+        if not os.path.exists(f'{model_results_dir}delay{settings["delay"]}_synX{lesion_flag}_null.npy'):
+            print('Generating synX null')
+            xx_trials_null, _ = tu.generate_synX(rnn_path, settings, 
+                                    model_results_dir = model_results_dir,
+                                    stim1s=[0], stim2s=[0], lesion=lesion,
+                                    n_trials=250, save=1, save_flag='null')
+        else:
+            print('Loading synX null')
+            xx_trials_null = np.load(f'{model_results_dir}delay{settings["delay"]}_synX{lesion_flag}_null.npy')
+        
+        # # running this for now to renegerate lesion null x matrices
+        # print('Generating synX null')
+        # xx_trials_null, _ = tu.generate_synX(rnn_path, settings, 
+        #                         model_results_dir = model_results_dir,
+        #                         stim1s=[0], stim2s=[0], lesion=lesion,
+        #                         n_trials=250, save=1, save_flag='null')
     
-    if not os.path.exists(f'{model_results_dir}delay{settings["delay"]}_synX_null.npy'):
-        print('Generating synX null')
-        xx_trials_null, _ = tu.generate_synX(rnn_path, settings, 
-                                model_results_dir = model_results_dir,
-                                stim1s=[0], stim2s=[-1,1],
-                                n_trials=500, save=1, save_flag='null')
-    else:
-        print('Loading synX null')
-        xx_trials_null = np.load(f'{model_results_dir}delay{settings["delay"]}_synX_null.npy')
+
         # # regenerate trial_stim_labels woops
-        # n_trials = xx_trials.shape[0]
+        # n_trials = xx_trials.shape[0]s
         # trial_stim_labels = np.zeros((n_trials,2))
         # n_trials_per_condition = int(n_trials/4)
         # stim1s = [-1, 1]
@@ -478,17 +513,25 @@ def plot_energy_landscape_over_null_delay(RNN_model_file, settings,
     m = torch.tensor(rnn_data['m'])
     w_in = torch.tensor(rnn_data['w_in'])
     taus_sig = torch.sigmoid(taus_gaus)*(taus[1] - taus[0]) + taus[0] # Neural time constant
+    inh = rnn_data['inh']
+    inh_ind = np.where(inh == 1)[0]
     ww = torch.matmul(w, m) # Recurrent weight matrix
+    if lesion == 'ii':
+        ww[inh_ind,inh_ind] *= 0.5
     
     stim_condns = [0, 1, -1]
     stim_names = ['both', '+1','-1']
-    markers = ['rx','mx']
+    # markers = ['rx','mx']
+    # colors = ['#9C9C9C','#D2B48C']
+    colors = ['#49BEA3', '#FFFFFF']
 
     n_minima = len(stim_condns)-1
     minima = np.zeros((n_minima,2))
     # fig, axs = plt.subplots(1, len(stim_condns),sharey=True, figsize=(10,4))
     cmap, minima_colors = get_landscape_cmap()
     for plotI, stim1 in enumerate(stim_condns):
+        if (plot == 0) and (stim1 == 0):
+            continue
         # Creating a 2d grid over PC space to plot different qs
         nComponents = 2
         if stim1 == 0: # get the null stimulus landscape
@@ -514,9 +557,9 @@ def plot_energy_landscape_over_null_delay(RNN_model_file, settings,
         if plot:
             if stim1 == 0:
                 im = plt.imshow(np.log(qMatrix).T, extent=[xVec[0],xVec[-1],yVec[-1],yVec[0]], 
-                                cmap=cmap, vmin=-4, vmax=4)
+                                cmap=cmap)#, vmin=-4, vmax=4)
             else:
-                plt.plot(xVec[min_idx[0]],yVec[min_idx[1]], markers[plotI-1], #'x',c=minima_colors[plotI],
+                plt.plot(xVec[min_idx[0]],yVec[min_idx[1]], 'x',c=colors[plotI-1],
                          label=f'{stim_names[plotI]}')
     
     dist = np.linalg.norm(minima[0]-minima[1])
@@ -532,7 +575,7 @@ def plot_energy_landscape_over_null_delay(RNN_model_file, settings,
         else:
             plt.title(f'Energy landscape for {RNN_model_file[-4]}')
 
-        # figname = '/home/nuttidalab/Documents/spikeRNN/results/2025_SRD/bad_model_landscape.svg'
+        # figname = '/home/nuttidalab/Documents/spikeRNN/results/2025_Cosyne/Poster/good_model_landscape.svg'
         # print(figname)
         # plt.savefig(figname, format='svg')
 
@@ -707,23 +750,28 @@ def plot_energy_landscapes_delay(RNN_model_files, settings,
 STIM2 PERIOD PLOTTING FUNCTIONS
 '''
 
-def plot_energy_landscape_stim2(RNN_model_file, settings,
+def plot_energy_landscape_stim2(RNN_model_file, settings, lesion='',
                           models_dir = '/scratch/spikeRNN/models/DMS_OSF/',
-                          xVec_lim=[-25,25], yVec_lim=[-15,40], res=100,
+                          xVec_lim=[-40,40], yVec_lim=[-40,40], res=100,
                           suptitle=[]):
     '''
     '''
     model_results_dir = f'{models_dir}{RNN_model_file[:-4]}/'
     rnn_path = os.path.join(models_dir, RNN_model_file) 
 
-    if not os.path.exists(f'{model_results_dir}delay{settings["delay"]}_synX.npy'):
+    if len(lesion) > 0:
+        lesion_flag = f'_lesion{lesion}'
+    else:
+        lesion_flag = ''
+
+    if not os.path.exists(f'{model_results_dir}delay{settings["delay"]}_synX{lesion_flag}.npy'):
         print('Generating synX')
-        xx_trials, trial_stim_labels = tu.generate_synX(rnn_path, settings, 
+        xx_trials, trial_stim_labels = tu.generate_synX(rnn_path, settings, lesion=lesion,
                                 save=1, model_results_dir = model_results_dir)
     else:
         print('Loading synX')
-        xx_trials = np.load(f'{model_results_dir}delay{settings["delay"]}_synX.npy')
-        trial_stim_labels = np.load(f'{model_results_dir}trial_stim_labels.npy')
+        xx_trials = np.load(f'{model_results_dir}delay{settings["delay"]}_synX{lesion_flag}.npy')
+        trial_stim_labels = np.load(f'{model_results_dir}trial_stim_labels{lesion_flag}.npy')
     
     rnn_data = scipy.io.loadmat(models_dir + RNN_model_file)
     # Loading model parameters
@@ -734,6 +782,10 @@ def plot_energy_landscape_stim2(RNN_model_file, settings,
     w_in = torch.tensor(rnn_data['w_in'])
     taus_sig = torch.sigmoid(taus_gaus)*(taus[1] - taus[0]) + taus[0] # Neural time constant
     ww = torch.matmul(w, m) # Recurrent weight matrix
+    inh = rnn_data['inh']
+    inh_ind = np.where(inh == 1)[0]
+    if lesion == 'ii':
+        ww[inh_ind,inh_ind] *= 0.5
     
     stim_condns = [1, -1]
     stim_names = ['+1','-1']
@@ -785,23 +837,28 @@ def plot_energy_landscape_stim2(RNN_model_file, settings,
     plt.show()
 
 
-def plot_energy_landscape_over_null_stim2(RNN_model_file, settings,
+def plot_energy_landscape_over_null_stim2(RNN_model_file, settings, lesion='',
                           models_dir = '/scratch/spikeRNN/models/DMS_OSF/',
-                          xVec_lim=[-25,25], yVec_lim=[-15,40], res=100,
+                          xVec_lim=[-40,40], yVec_lim=[-40,40], res=100,
                           plot=1, title=[]):
     '''
     '''
     model_results_dir = f'{models_dir}{RNN_model_file[:-4]}/'
     rnn_path = os.path.join(models_dir, RNN_model_file) 
 
-    if not os.path.exists(f'{model_results_dir}delay{settings["delay"]}_synX.npy'):
+    if len(lesion) > 0:
+        lesion_flag = f'_lesion{lesion}'
+    else:
+        lesion_flag = ''
+
+    if not os.path.exists(f'{model_results_dir}delay{settings["delay"]}_synX{lesion_flag}.npy'):
         print('Generating synX')
-        xx_trials, trial_stim_labels = generate_synX(rnn_path, settings, 
+        xx_trials, trial_stim_labels = generate_synX(rnn_path, settings, lesion=lesion,
                                 save=1, model_results_dir = model_results_dir)
     else:
         print('Loading synX')
-        xx_trials = np.load(f'{model_results_dir}delay{settings["delay"]}_synX.npy')
-        trial_stim_labels = np.load(f'{model_results_dir}trial_stim_labels.npy')
+        xx_trials = np.load(f'{model_results_dir}delay{settings["delay"]}_synX{lesion_flag}.npy')
+        trial_stim_labels = np.load(f'{model_results_dir}trial_stim_labels{lesion_flag}.npy')
     
     # # this is for including both +1 and -1 for stim2 (basically combined)
     # if not os.path.exists(f'{model_results_dir}delay{settings["delay"]}_synX_null.npy'):
@@ -815,15 +872,19 @@ def plot_energy_landscape_over_null_stim2(RNN_model_file, settings,
     #     xx_trials_null = np.load(f'{model_results_dir}delay{settings["delay"]}_synX_null.npy')
 
     if plot:
-        if not os.path.exists(f'{model_results_dir}delay{settings["delay"]}_synX_null_stim2.npy'):
+        if lesion == 'ii':
+            print('Loading synX null')
+            xx_trials_null = np.load(f'{model_results_dir}delay{settings["delay"]}_synX{lesion_flag}_null.npy')
+        
+        elif not os.path.exists(f'{model_results_dir}delay{settings["delay"]}_synX{lesion_flag}_null_stim2.npy'):
             print('Generating synX null')
-            xx_trials_null, _ = generate_synX(rnn_path, settings, 
+            xx_trials_null, _ = generate_synX(rnn_path, settings, lesion=lesion,
                                     model_results_dir = model_results_dir,
                                     stim1s=[0], stim2s=[0],
                                     n_trials=250, save=1, save_flag='null_stim2')
         else:
             print('Loading synX null')
-            xx_trials_null = np.load(f'{model_results_dir}delay{settings["delay"]}_synX_null_stim2.npy')
+            xx_trials_null = np.load(f'{model_results_dir}delay{settings["delay"]}_synX{lesion_flag}_null_stim2.npy')
 
     # if not os.path.exists(f'{model_results_dir}delay{settings["delay"]}_synX_null_stim2.npy'):
     #     print('Generating synX null')
@@ -845,10 +906,16 @@ def plot_energy_landscape_over_null_stim2(RNN_model_file, settings,
     w_in = torch.tensor(rnn_data['w_in'])
     taus_sig = torch.sigmoid(taus_gaus)*(taus[1] - taus[0]) + taus[0] # Neural time constant
     ww = torch.matmul(w, m) # Recurrent weight matrix
+    inh = rnn_data['inh']
+    inh_ind = np.where(inh == 1)[0]
+    if lesion == 'ii':
+        ww[inh_ind,inh_ind] *= 0.5
     
     stim_condns = [1, -1]
     stim_names = ['+1','-1']
-    markers = ['rx','mx','bx','gx']
+    # markers = ['rx','mx','bx','gx']
+    # colors = ['#FFFFFF','#9C9C9C', '#49BEA3','#318A77']
+    colors = ['#49BEA3','#236975','#9C9C9C', '#FFFFFF']
 
     n_minima = len(stim_condns)*2
     minima = np.zeros((n_minima,2))
@@ -889,7 +956,7 @@ def plot_energy_landscape_over_null_stim2(RNN_model_file, settings,
             min_idx = np.unravel_index(np.argmin(qMatrix),qMatrix.shape)
             minima[2*plotI+plotJ,:] = [xVec[min_idx[0]],yVec[min_idx[1]]]
             if plot:
-                plt.plot(xVec[min_idx[0]],yVec[min_idx[1]], markers[2*plotI+plotJ], #'x',c=minima_colors[plotI],
+                plt.plot(xVec[min_idx[0]],yVec[min_idx[1]], 'x',c=colors[2*plotI+plotJ], #markers[2*plotI+plotJ], 
                             label=f'{stim_names[plotI]} / {stim_names[plotJ]}')
     
     # dist = np.linalg.norm(minima[0]-minima[1])
@@ -905,7 +972,7 @@ def plot_energy_landscape_over_null_stim2(RNN_model_file, settings,
         else:
             plt.title(f'Energy landscape for {RNN_model_file[-4]}')
 
-        # figname = '/home/nuttidalab/Documents/spikeRNN/results/2025_SRD/bad_model_landscape.svg'
+        # figname = '/home/nuttidalab/Documents/spikeRNN/results/2025_Cosyne/Poster/stim2_bad_model_landscape.svg'
         # print(figname)
         # plt.savefig(figname, format='svg')
 

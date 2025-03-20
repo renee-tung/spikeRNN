@@ -24,7 +24,11 @@ for n_type = 1:length(models_types) % good and bad models
 
     % eval_perf_mean = zeros(length(stable_mods), n_lesion_types);
     % eval_perf_mean_all = zeros(length(stable_mods), n_lesion_types);
-    n_model = 1; % for each model
+    if n_type == 1
+        n_model = 2; % get model 2 for good models
+    else
+        n_model = 1; % get model 1 for bad models
+    end
     fprintf('\n');
     disp([models_types{n_type}, ' number ', num2str(n_model), ' of ', num2str(length(stable_mods))]);
 
@@ -92,11 +96,17 @@ for n_type = 1:length(models_types) % good and bad models
     end
     
     if n_type == 1 % 1 is good
-        plotcolor1 = [0,0.478,0.478,0.5];%"#007a7a";
-        plotcolor2 = [0,0.278, 0.278,0.5];%"#004747";
+        plotcolor1 = '#49BEA3';
+        plotcolor2 = '#236975';
+
+        % plotcolor1 = [0,0.478,0.478,0.5];%"#007a7a";
+        % plotcolor2 = [0,0.278, 0.278,0.5];%"#004747";
     elseif n_type == 2 % 2 is bad
-        plotcolor1 = [0.478,0,0.478,0.5];%"#7a007a";
-        plotcolor2 = [0.278,0,0.278,0.5]; %"#470047";
+        plotcolor1 = '#6E439A';
+        plotcolor2 = '#2B1644';
+
+        % plotcolor1 = [0.478,0,0.478,0.5];%"#7a007a";
+        % plotcolor2 = [0.278,0,0.278,0.5]; %"#470047";
     end
     
     fs_ds = 200;
@@ -120,6 +130,7 @@ for n_type = 1:length(models_types) % good and bad models
 
     saveas(gcf, [models_type,'_output.svg'],'svg')
 
+    break
 
     % eval_perf_mean = eval_perf_mean_all;
     % save(save_name, 'eval_perf_mean')
