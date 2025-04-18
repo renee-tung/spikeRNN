@@ -28,6 +28,8 @@ sys.path.append('/home/nuttidalab/Documents/spikeRNN/analysis_code/utils/fixed-p
 from FixedPointFinderTorch import FixedPointFinderTorch as FixedPointFinder
 from plot_utils import plot_fps # in fixedpointfinder folder
 
+import pdb
+
 
 
 def generate_xor_type(T, stim_on, stim_dur, delay, stim1=1, stim2=-1):
@@ -316,7 +318,7 @@ def q_fun(x, taus_sig, ww, w_in, stim):
     q = 0.5*(torch.sum(np.power(F-np.expand_dims(x,1),2))).item()        
     return q
 
-def get_period_pca(xx_trials,period,settings,nComponents):
+def get_period_pca(xx_trials,period,settings,nComponents, return_times=False):
     # Which times the trajectory points will be drawn from
 
 	stim_on = settings['stim_on']
@@ -336,7 +338,12 @@ def get_period_pca(xx_trials,period,settings,nComponents):
 	pca = PCA(n_components=nComponents)
 	pca.fit(period_avg)
 	pca_period = pca
-	return pca_period
+	print(f'PCA explained variance: {pca.explained_variance_ratio_}')
+    
+	if return_times:
+		return pca_period, times
+	else:
+		return pca_period
 
 
 def get_landscape_cmap():
@@ -361,7 +368,7 @@ DELAY PERIOD PLOTTING FUNCTIONS
 
 def plot_energy_landscape_delay(RNN_model_file, settings,
                           models_dir = '/scratch/spikeRNN/models/DMS_OSF/',
-                          lesion = '', 
+                          lesion = '', vmin=-4, vmax=4,
                           xVec_lim=[-25,25], yVec_lim=[-15,40], res=100,
                           suptitle=[]):
     '''
@@ -422,9 +429,215 @@ def plot_energy_landscape_delay(RNN_model_file, settings,
         # Getting minimum energy point    
         min_idx = np.unravel_index(np.argmin(qMatrix),qMatrix.shape)
         im = axs[plotI].imshow(np.log(qMatrix).T, extent=[xVec[0],xVec[-1],yVec[-1],yVec[0]], 
-                               vmin=-4, vmax=4, cmap=cmap)
+                               cmap=cmap, vmin=vmin, vmax=vmax)#, vmin=-4, vmax=4)
         axs[plotI].plot(xVec[min_idx[0]],yVec[min_idx[1]],'x', c='w')
         axs[plotI].set_title(f'{stim_names[plotI]}')
+
+    divider = make_axes_locatable(axs[-1])
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    
+    cbar=plt.colorbar(im, cax=cax)
+    cbar.set_label('log(Energy)')
+
+    # common axis labels
+    fig.supxlabel('PC1')
+    fig.supylabel('PC2')
+    if len(suptitle) > 0:
+        fig.suptitle(suptitle)
+    else:
+        fig.suptitle(f'Energy landscape for {RNN_model_file[-4]}')
+
+    # plt.subplots_adjust(right=0.9)
+    plt.show()
+
+def plot_energy_landscape_3d_delay(RNN_model_file, settings,
+                          models_dir = '/scratch/spikeRNN/models/DMS_OSF/',
+                          lesion = '', vmin=-4, vmax=4,
+                          xVec_lim=[-15,15], yVec_lim=[-15,15], zVec_lim=[-15,15],
+                          res=100,
+                          suptitle=[]):
+    '''
+    '''
+    model_results_dir = f'{models_dir}{RNN_model_file[:-4]}/'
+    rnn_path = os.path.join(models_dir, RNN_model_file) 
+
+    if len(lesion) > 0:
+        lesion_flag = f'_lesion{lesion}'
+    else:
+        lesion_flag = ''
+
+    if not os.path.exists(f'{model_results_dir}delay{settings["delay"]}_synX{lesion_flag}.npy'):
+        print('Generating synX')
+        xx_trials, trial_stim_labels = tu.generate_synX(rnn_path, settings, 
+                                save=1, model_results_dir = model_results_dir)
+    else:
+        print('Loading synX')
+        xx_trials = np.load(f'{model_results_dir}delay{settings["delay"]}_synX{lesion_flag}.npy')
+        trial_stim_labels = np.load(f'{model_results_dir}trial_stim_labels.npy')
+    
+    rnn_data = scipy.io.loadmat(models_dir + RNN_model_file)
+    # Loading model parameters
+    taus_gaus = torch.tensor(rnn_data['taus_gaus'])
+    taus = torch.tensor(rnn_data['taus'][0])
+    w = torch.tensor(rnn_data['w'])
+    m = torch.tensor(rnn_data['m'])
+    w_in = torch.tensor(rnn_data['w_in'])
+    taus_sig = torch.sigmoid(taus_gaus)*(taus[1] - taus[0]) + taus[0] # Neural time constant
+    ww = torch.matmul(w, m) # Recurrent weight matrix
+    inh = rnn_data['inh']
+    inh_ind = np.where(inh == 1)[0]
+    if lesion == 'ii':
+        ww[inh_ind,inh_ind] *= 0.5
+    
+    stim_condns = [1, -1]
+    stim_names = ['+1','-1']
+
+    fig, axs = plt.subplots(1, len(stim_condns), sharey=True, subplot_kw={'projection': '3d'},
+                            figsize=(10,4))
+    cmap, _ = get_landscape_cmap()
+    for plotI, stim1 in enumerate(stim_condns):
+        # Creating a 2d grid over PC space to plot different qs
+        nComponents = 2
+        pca_period = get_period_pca(xx_trials[trial_stim_labels[:,0] == stim1,:,:],'delay',settings, nComponents)
+
+        # PC space grid 
+        res = 100
+
+        xVec = np.linspace(xVec_lim[0],xVec_lim[1],res)
+        yVec = np.linspace(yVec_lim[0],yVec_lim[1],res)
+
+        X,Y = np.meshgrid(xVec,yVec)
+    
+        u = torch.tensor([0,0], dtype=torch.float32) # current stim is always 0 bc delay
+        qMatrix = np.zeros((res,res))            
+        for i in np.arange(res):
+            for j in np.arange(res):
+                x_real = torch.tensor(pca_period.inverse_transform([xVec[i],yVec[j]]))
+                qMatrix[i,j] = tu.q_fun(x_real, taus_sig, ww, w_in, u)
+        # Getting minimum energy point    
+        min_idx = np.unravel_index(np.argmin(qMatrix),qMatrix.shape)
+        im = axs[plotI].plot_surface(X, Y, np.log(qMatrix).T, cmap=cmap, vmin=vmin, vmax=vmax)
+        axs[plotI].plot(xVec[min_idx[0]],yVec[min_idx[1]],np.log(qMatrix).T[min_idx[0],min_idx[1]],'x', c='w')
+        # im = axs[plotI].imshow(np.log(qMatrix).T, extent=[xVec[0],xVec[-1],yVec[-1],yVec[0]], 
+        #                        cmap=cmap, vmin=vmin, vmax=vmax)#, vmin=-4, vmax=4)
+        # axs[plotI].plot(xVec[min_idx[0]],yVec[min_idx[1]],'x', c='w')
+        axs[plotI].set_title(f'{stim_names[plotI]}')
+
+    divider = make_axes_locatable(axs[-1])
+    # cax = divider.append_axes("right", size="5%", pad=0.05)
+    
+    # cbar=plt.colorbar(im, cax=cax)
+    # cbar.set_label('log(Energy)')
+
+    # common axis labels
+    fig.supxlabel('PC1')
+    fig.supylabel('PC2')
+    if len(suptitle) > 0:
+        fig.suptitle(suptitle)
+    else:
+        fig.suptitle(f'Energy landscape for {RNN_model_file[-4]}')
+
+    # plt.subplots_adjust(right=0.9)
+    plt.show()
+
+def plot_energy_landscape_flowfield_delay(RNN_model_file, settings,
+                          models_dir = '/scratch/spikeRNN/models/DMS_OSF/',
+                          lesion = '', vmin=-4, vmax=4,
+                          xVec_lim=[-15,15], yVec_lim=[-15,15], res=100,
+                          suptitle=[]):
+    '''
+    '''
+    model_results_dir = f'{models_dir}{RNN_model_file[:-4]}/'
+    rnn_path = os.path.join(models_dir, RNN_model_file) 
+
+    if len(lesion) > 0:
+        lesion_flag = f'_lesion{lesion}'
+    else:
+        lesion_flag = ''
+
+    if not os.path.exists(f'{model_results_dir}delay{settings["delay"]}_synX{lesion_flag}.npy'):
+        print('Generating synX')
+        xx_trials, trial_stim_labels = tu.generate_synX(rnn_path, settings, 
+                                save=1, model_results_dir = model_results_dir)
+    else:
+        print('Loading synX')
+        xx_trials = np.load(f'{model_results_dir}delay{settings["delay"]}_synX{lesion_flag}.npy')
+        trial_stim_labels = np.load(f'{model_results_dir}trial_stim_labels.npy')
+    
+    rnn_data = scipy.io.loadmat(models_dir + RNN_model_file)
+    # Loading model parameters
+    taus_gaus = torch.tensor(rnn_data['taus_gaus'])
+    taus = torch.tensor(rnn_data['taus'][0])
+    w = torch.tensor(rnn_data['w'])
+    m = torch.tensor(rnn_data['m'])
+    w_in = torch.tensor(rnn_data['w_in'])
+    taus_sig = torch.sigmoid(taus_gaus)*(taus[1] - taus[0]) + taus[0] # Neural time constant
+    ww = torch.matmul(w, m) # Recurrent weight matrix
+    inh = rnn_data['inh']
+    inh_ind = np.where(inh == 1)[0]
+    if lesion == 'ii':
+        ww[inh_ind,inh_ind] *= 0.5
+    
+    stim_condns = [1, -1]
+    stim_names = ['+1','-1']
+
+    fig, axs = plt.subplots(1, len(stim_condns),sharey=True, figsize=(10,4))
+    cmap, _ = get_landscape_cmap()
+    for plotI, stim1 in enumerate(stim_condns):
+        # Creating a 2d grid over PC space to plot different qs
+        nComponents = 2
+        pca_period, times = get_period_pca(xx_trials[trial_stim_labels[:,0] == stim1,:,:],'delay',
+                                           settings, nComponents, return_times=True)
+
+        # PC space grid 
+        res = 100
+
+        xVec = np.linspace(xVec_lim[0],xVec_lim[1],res)
+        yVec = np.linspace(yVec_lim[0],yVec_lim[1],res)
+
+        X,Y = np.meshgrid(xVec,yVec)
+    
+        u = torch.tensor([0,0], dtype=torch.float32) # current stim is always 0 bc delay
+        qMatrix = np.zeros((res,res))            
+        for i in np.arange(res):
+            for j in np.arange(res):
+                x_real = torch.tensor(pca_period.inverse_transform([xVec[i],yVec[j]]))
+                qMatrix[i,j] = tu.q_fun(x_real, taus_sig, ww, w_in, u)
+        # Getting minimum energy point    
+        min_idx = np.unravel_index(np.argmin(qMatrix),qMatrix.shape)
+        im = axs[plotI].imshow(np.log(qMatrix).T, extent=[xVec[0],xVec[-1],yVec[-1],yVec[0]], 
+                               cmap=cmap, vmin=vmin, vmax=vmax)#, vmin=-4, vmax=4)
+        
+        # plot flow field
+        grad_x, grad_y = np.gradient(np.log(qMatrix).T)
+        magnitude = np.sqrt(grad_x**2 + grad_y**2)
+        grad_x /= magnitude
+        grad_y /= magnitude
+        # axs[plotI].quiver(X, Y, grad_x, grad_y, color='k', alpha=0.5, scale=20)
+
+        skip = 3
+        X_sub = X[::skip, ::skip]
+        Y_sub = Y[::skip, ::skip]
+        grad_x_sub = grad_x[::skip, ::skip]
+        grad_y_sub = grad_y[::skip, ::skip]
+        axs[plotI].quiver(X_sub, Y_sub, grad_x_sub, grad_y_sub, color='k', alpha=0.5, scale=20)
+
+        axs[plotI].plot(xVec[min_idx[0]],yVec[min_idx[1]],'x', c='w')
+        axs[plotI].set_title(f'{stim_names[plotI]}')
+
+        # plot 3 example trajectories, with marker at the end
+        n_samples = 3
+        samp_idx = np.random.randint(xx_trials[trial_stim_labels[:,0] == stim1].shape[0],size=n_samples)
+        for i in range(n_samples):
+            samp_xx_trial = xx_trials[trial_stim_labels[:,0] == stim1][samp_idx[i],times,:]
+            samp_xx_trial_pca = pca_period.transform(samp_xx_trial)
+            axs[plotI].plot(samp_xx_trial_pca[:,0],samp_xx_trial_pca[:,1],'w', alpha=0.5)
+            axs[plotI].plot(samp_xx_trial_pca[-1,0],samp_xx_trial_pca[-1,1],'o', c='w', alpha=0.5)
+
+        # plot mean trajectory
+        mean_xx_trial = np.mean(xx_trials[trial_stim_labels[:,0] == stim1],axis=0)
+        mean_xx_trial_pca = pca_period.transform(mean_xx_trial)
+        axs[plotI].plot(mean_xx_trial_pca[times,0],mean_xx_trial_pca[times,1],'w', alpha=0.7)
 
     divider = make_axes_locatable(axs[-1])
     cax = divider.append_axes("right", size="5%", pad=0.05)
