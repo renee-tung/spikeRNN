@@ -6,3 +6,5 @@
 *.tar.gz
 *.ckpt
 *.npy
+*.pkl
+
