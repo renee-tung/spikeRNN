@@ -57,9 +57,9 @@ exc_ind = find(exc);
 % lesion / weaken connections
 if strcmpi(connection_type, 'ii') == 1 % Inh -> Inh
     W(inh_ind , inh_ind ) = W(inh_ind , inh_ind )*0.5;
-elseif strcmpi(connection_type, 'ie') == 1 % Exc -> Inh
+elseif strcmpi(connection_type, 'ei') == 1 % Exc -> Inh
     W(inh_ind , exc_ind) = W(inh_ind , exc_ind)*0.5;
-elseif strcmpi(connection_type, 'ei') == 1 % Inh -> Exc
+elseif strcmpi(connection_type, 'ie') == 1 % Inh -> Exc
     W(exc_ind, inh_ind ) = W(exc_ind, inh_ind )*0.5;
 elseif strcmpi(connection_type, 'ee') == 1 % Exc -> Exc
     W(exc_ind, exc_ind) = W(exc_ind, exc_ind)*0.5;
