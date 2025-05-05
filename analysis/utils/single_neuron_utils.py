@@ -12,6 +12,47 @@ import load_data as ld
 from bootstrap_method import *
 
 
+
+''' 
+NEURON TUNING CALCULATIONS
+'''
+
+def calc_stim1_tuning(model_name, condn_phrase, condn_num):
+    """
+    for this model + condition, get the stim1 tuning preference for all neurons
+    """
+
+    _, _, rates_data = ld.load_neural_data(model_name, condn_phrase, condn_num,
+                                                  load_LFP=False, load_spikes=False, load_rates=True)
+    # behavioral data
+    trial_labels, trial_perfs = ld.load_bhv_data(model_name, condn_phrase, condn_num)
+
+    # timing data
+    times_ms, _,_ = ld.get_times_dict('ds', condn_phrase, condn_num)
+
+
+    all_stim1_fr = np.mean(rates_data[int(times_ms['stim1_on']):int(times_ms['stim1_off']), :,:], axis=0)
+
+    trial_types, trial_idxs = np.unique(trial_labels[:,0], return_inverse=True) # only stim1
+    n_trial_types = len(trial_types)
+
+    tuning = np.zeros(all_stim1_fr.shape[0]) # tuning for each neuron
+    for n_neuron in range(all_stim1_fr.shape[0]):
+        stim1_rates = np.zeros((n_trial_types, int(rates_data.shape[2]/n_trial_types)))
+        for i, trial_type in enumerate(trial_types):
+            trials_idx = (trial_idxs == i)
+            stim1_rates[i,:] = all_stim1_fr[n_neuron, trials_idx]
+        _, p = stats.mannwhitneyu(stim1_rates[0,:], stim1_rates[1,:])
+        if p < 0.05:
+            tuning[n_neuron] = trial_types[np.argmax([stim1_rates[0,:].mean(), stim1_rates[1,:].mean()])]
+        else:
+            tuning[n_neuron] = np.nan
+
+    return tuning
+
+
+
+
 '''
 RASTER PLOT FUNCTIONS
 '''

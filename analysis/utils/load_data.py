@@ -63,13 +63,13 @@ def load_neural_data(model_name, condn_phrase, condn_num='', all_models_dir='/sc
     f = h5py.File(neuraldata_path, 'r')
 
     if load_LFP:
-        lfp_data = f['all_lfp'] # time x neurons x trials
+        lfp_data = f['all_lfp']#[:] # time x neurons x trials
         # lfp_data = lfp_data.transpose(1, 2, 0) # neurons x trials x time
     else:
         lfp_data = None
 
     if load_spikes:
-        refs = f['all_spk_times']['spk_times']
+        refs = f['all_spk_times']['spk_times']#[:]
         spk_times_list = []
         for i in range(refs.shape[0]):
             inner_refs = f[refs[i][0]][:]  # This gets you the array of inner object refs
@@ -98,7 +98,7 @@ def load_neural_data(model_name, condn_phrase, condn_num='', all_models_dir='/sc
         spk_times_df = None
 
     if load_rates:
-        rates = f['all_rates'] # time x neurons x trials
+        rates = f['all_rates']#[:] # time x neurons x trials
         # rates = rates.transpose(1, 2, 0) # neurons x trials x time
     else:
         rates = None
@@ -211,6 +211,22 @@ def get_celltype_label(model_name):
     inh_ind = np.where(inh == 1)[0]
     
     return exc_ind, inh_ind
+
+
+def get_timescales(model_name):
+    '''
+    Get the timescales for a given model
+    '''
+    mat_data = get_model(model_name)
+    mean_decay = mat_data['mean_decay'][0][0]
+    taus_decay_ms = mat_data['taus_decay_ms'][0]
+    nan_idx = np.isnan(taus_decay_ms)
+    auto_N = mat_data['auto_N'][0]
+    taus_decay_ms = taus_decay_ms[~nan_idx]
+    auto_N = auto_N[~nan_idx]
+
+    return mean_decay, taus_decay_ms, auto_N
+
 
 def get_connectivity_df(model_name):
     '''
