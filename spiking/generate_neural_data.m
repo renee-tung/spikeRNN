@@ -19,7 +19,7 @@ clear; clc
 
 normalize_ipscs = 0;
 lesion_connections = 0; % if not lesioning put 0, else 'ii' etc
-delay = 400; % 150 is the standard "testing" delay duration
+delay = 150; % 150 is the standard "testing" delay duration
 n_trials_per_condn = 250;
 
 
@@ -36,12 +36,14 @@ end
 
 
 %% add path
-addpath('/home/nuttidalab/Documents/spikeRNN/spiking/')
+addpath('/home/nuttidalab/Documents/renee/spikeRNN/spiking/')
+% addpath('/home/nuttidalab/Documents/spikeRNN/spiking/')
 
 
 %% directory info
 
-all_model_path = '/scratch/all_DMS_models/';
+% all_model_path = '/scratch/all_DMS_models/';
+all_model_path = '/home/nuttidalab/Documents/renee/all_DMS_models/';
 cd(all_model_path)
 model_list = dir('*.mat');
 

@@ -45,10 +45,15 @@ def find_files_keywords(dir_name, keywords):
         for filename in filenames:
             if all(keyword in filename for keyword in keywords):
                 files.append(os.path.join(root, filename))
+
+    if len(files) == 0:
+        print(f'No files found with keywords {keywords} in {dir_name}')
+
     return files
 
 
-def load_neural_data(model_name, condn_phrase, condn_num='', all_models_dir='/scratch/all_DMS_models/',
+def load_neural_data(model_name, condn_phrase, condn_num='', 
+                     all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/', #all_models_dir='/scratch/all_DMS_models/',
                      load_LFP=True, load_spikes=True, load_rates=True):
     '''
     Load neural data from a saved model
@@ -63,7 +68,7 @@ def load_neural_data(model_name, condn_phrase, condn_num='', all_models_dir='/sc
     f = h5py.File(neuraldata_path, 'r')
 
     if load_LFP:
-        lfp_data = f['all_lfp']#[:] # time x neurons x trials
+        lfp_data = f['all_lfp'][:] # time x neurons x trials
         # lfp_data = lfp_data.transpose(1, 2, 0) # neurons x trials x time
     else:
         lfp_data = None
@@ -98,7 +103,7 @@ def load_neural_data(model_name, condn_phrase, condn_num='', all_models_dir='/sc
         spk_times_df = None
 
     if load_rates:
-        rates = f['all_rates']#[:] # time x neurons x trials
+        rates = f['all_rates'][:] # time x neurons x trials
         # rates = rates.transpose(1, 2, 0) # neurons x trials x time
     else:
         rates = None
@@ -107,7 +112,8 @@ def load_neural_data(model_name, condn_phrase, condn_num='', all_models_dir='/sc
     
 
     
-def load_bhv_data(model_name, condn_phrase, condn_num='', all_models_dir='/scratch/all_DMS_models/'):
+def load_bhv_data(model_name, condn_phrase, condn_num='', 
+                  all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'): #all_models_dir='/scratch/all_DMS_models/',):
     '''
     Load behavioral data from a saved model
     condn_phrase is a string specifying the condition to load, eg 'delay150'
@@ -116,6 +122,9 @@ def load_bhv_data(model_name, condn_phrase, condn_num='', all_models_dir='/scrat
     model_dir = os.path.join(all_models_dir, model_name)
     condn_key = f'{condn_phrase}{condn_num}'
     bhvdata_path = find_files_keywords(model_dir, ['bhvdata', condn_key])[0]
+    if bhvdata_path == []:
+        print(f'No behavioral data found for {model_name} with condition {condn_phrase}{condn_num}')
+        return None, None
 
     # Load the data
     bhv_mat = sio.loadmat(bhvdata_path)
@@ -124,7 +133,8 @@ def load_bhv_data(model_name, condn_phrase, condn_num='', all_models_dir='/scrat
 
     return trial_labels, trial_perfs
 
-def load_timing_data(model_name, condn_phrase, condn_num='', all_models_dir='/scratch/all_DMS_models/'):
+def load_timing_data(model_name, condn_phrase, condn_num='', 
+                     all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'): #all_models_dir='/scratch/all_DMS_models/',):
     '''
     Load timing data from a saved model
     condn_phrase is a string specifying the condition to load, eg 'delay150'
@@ -164,7 +174,7 @@ def load_timing_data(model_name, condn_phrase, condn_num='', all_models_dir='/sc
     return times_rate, times_real, fs_dict
 
 def get_times_dict(fs_wanted, condn_phrase, condn_num='', 
-                   model_name='', all_models_dir='/scratch/all_DMS_models/'):
+                   model_name='', all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'): #all_models_dir='/scratch/all_DMS_models/'
     '''
     Get the timing data dict for a specified fs
     fs_wanted is the sampling rate, can be 'rate', 'spk', 'ds', or a float
@@ -188,7 +198,7 @@ def get_times_dict(fs_wanted, condn_phrase, condn_num='',
     return times_fs, times_real, fs_dict
 
 
-def get_model(model_name, all_models_dir='/scratch/all_DMS_models/'):
+def get_model(model_name, all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'): #all_models_dir='/scratch/all_DMS_models/',):
     '''
     Get the model data for a given model
     '''
@@ -263,7 +273,7 @@ def get_connectivity_df(model_name):
     return connectivity_df
 
 
-def get_weights(model_name, all_models_dir='/scratch/all_DMS_models/'):
+def get_weights(model_name, all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'): #all_models_dir='/scratch/all_DMS_models/',):
     '''
     Get the weights for a given model
     '''
@@ -278,3 +288,20 @@ def get_weights(model_name, all_models_dir='/scratch/all_DMS_models/'):
     taus_sig = (1/(1+np.exp(-taus_gaus))*(taus[1] - taus[0])) + taus[0]
     
     return final_w
+
+
+def get_models_by_perf(low_cutoff, high_cutoff, condn_phrase, condn_num='', 
+                       all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'):
+    
+    model_dirs = get_immediate_subdirs(all_models_dir)
+    model_perfs = []
+    model_names = []
+    for i, model_name in enumerate(model_dirs):
+        _, trial_perfs = load_bhv_data(model_name, condn_phrase, condn_num)
+        model_perf = np.mean(trial_perfs)
+        if model_perf > low_cutoff and model_perf < high_cutoff:
+            model_perfs.append(model_perf)
+            model_names.append(model_name)
+    print(f'Found {len(model_perfs)} models with performance between {low_cutoff} and {high_cutoff}')
+    
+    return model_names, model_perfs
