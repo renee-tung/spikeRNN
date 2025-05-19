@@ -42,7 +42,7 @@ def plot_trial_performance(model_name, condn_phrase, condn_num, ax=None):
     ax.set_ylim(0, 1.1)
     # plt.axhline(y=0.5, color='r', linestyle='--')
     # plt.axhline(y=0.75, color='g', linestyle='--')
-    ax.set_title('Performance')
+    ax.set_title(model_name[-6:])
     ax.set_xlabel('Trial Type')
     ax.set_ylabel('Performance')
     # plt.grid()

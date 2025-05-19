@@ -54,7 +54,7 @@ def calc_stim1_tuning(model_name, condn_phrase, condn_num, rates_data=None):
     return tuning
 
 
-def plot_stim1_tuning(tuning, cell_idxs=None, ax=None, title=None):
+def plot_stim1_tuning(tuning, cell_idxs=None, exc_ind = None, ax=None, title=None):
     """
     Plot the stim1 tuning for a given model and condition
     """
@@ -68,12 +68,23 @@ def plot_stim1_tuning(tuning, cell_idxs=None, ax=None, title=None):
     x_labels = ['-1','+1','none']
     x = np.arange(len(x_labels))
     n_tuned = np.zeros(len(x_labels))
+    n_exc = np.zeros(len(x_labels))
     tuning_options = [-1, 1, np.nan]
     for i, tuning_option in enumerate(tuning_options):
         n_tuned[i] = np.sum(tuning[cell_idxs] == tuning_option)
         if np.isnan(tuning_option):
             n_tuned[i] = np.sum(np.isnan(tuning[cell_idxs]))
-    ax.bar(x, n_tuned, color='black', alpha=0.5)
+        if exc_ind is not None:
+            n_exc[i] = np.sum(tuning[cell_idxs[exc_ind]] == tuning_option)
+            if np.isnan(tuning_option):
+                n_exc[i] = np.sum(np.isnan(tuning[cell_idxs[exc_ind]]))
+    
+    if exc_ind is None:
+        ax.bar(x, n_tuned, color='black', alpha=0.5)
+    else:
+        ax.bar(x, n_exc, color='red', alpha=0.5)
+        ax.bar(x, n_tuned-n_exc, bottom=n_exc, color='blue', alpha=0.5)
+
     ax.set_xticks(x)
     ax.set_xticklabels(x_labels)
     ax.set_ylabel('Number of neurons')
@@ -199,7 +210,8 @@ def plot_neuron_raster(cell_df, condn_phrase, condn_num, title=None):
 FIRING RATE FUNCTIONS
 '''
 
-def plot_neuron_rates(model_name, cell_id, condn_phrase, condn_num, rates_data = None, cut_off = 50, ax=None, title=None):
+def plot_neuron_rates(model_name, cell_id, condn_phrase, condn_num, rates_data = None, cut_off = 50, baseline=False,
+                      ax=None, title=None):
     """
     Plot the firing rates of a neuron across trials.
     
@@ -222,6 +234,11 @@ def plot_neuron_rates(model_name, cell_id, condn_phrase, condn_num, rates_data =
 
     # get timing info
     times_ms, times_real, fs_dict = ld.get_times_dict('ds', condn_phrase, condn_num) #ds is fs=1000, ms
+
+    if baseline:
+        baseline_idx = get_fixation_baseline_times(times_ms)
+        rates_data = baseline_norm_rate(rates_data, baseline_idx=baseline_idx)
+        ylabel = 'Normalized Firing rate'
 
     _, colors = get_trialtype_colors()
     if ax is None:
@@ -247,7 +264,7 @@ def plot_neuron_rates(model_name, cell_id, condn_phrase, condn_num, rates_data =
 
     # axes
     ax.set_xlabel('Time (ms)')
-    ax.set_ylabel('Firing rate (Hz)')
+    ax.set_ylabel(ylabel if baseline else 'Firing rate (Hz)')
     if title is not None:
         ax.set_title(f'{title}')
     else:
@@ -597,26 +614,31 @@ def calc_subpop(model_name, condn_phrase, condn_num, method= 'rate_dist', rates_
 def baseline_norm_rate(r, baseline_idx=None):
     '''
     normalize firing rates to z-scores
-    r: firing rates, shape (n_neurons, T)
+    r: firing rates, shape (n_neurons, T), or (T, n_neurons, n_trials)
     baseline: if None, use the mean of the first 100 ms as baseline
     '''
     n_dims = len(r.shape)
     if n_dims == 2:
         # r is (n_neurons, T)
         if baseline_idx is None:
-            baseline = r[:, :100].mean(axis=1, keepdims=True)
+            baseline_mean = r[:, :100].mean(axis=1, keepdims=True)
+            baseline_std = r[:, :100].std(axis=1, keepdims=True)
         else:
-            baseline = r[:, baseline_idx[0]:baseline_idx[1]].mean(axis=1, keepdims=True)
-        r = (r - baseline) / (baseline + 1e-8)
+            baseline_mean = r[:, baseline_idx[0]:baseline_idx[1]].mean(axis=1, keepdims=True)
+            baseline_std = r[:, baseline_idx[0]:baseline_idx[1]].std(axis=1, keepdims=True)
+        # do z-score normalization
+        r = (r - baseline_mean) / (baseline_std + 1e-10)
 
     elif n_dims == 3:
         # r is (T, n_neurons, n_trials)
-        r = r.transpose(1, 0, 2)  # (n_neurons, T, n_trials)
         if baseline_idx is None:
-            baseline = r[:, :100, :].mean(axis=1, keepdims=True)
+            baseline_mean = r[:100,:,:].mean(axis=0, keepdims=True)
+            baseline_std = r[:100,:,:].std(axis=0, keepdims=True)
         else:
-            baseline = r[:, baseline_idx[0]:baseline_idx[1], :].mean(axis=1, keepdims=True)
-        r = (r - baseline) / (baseline + 1e-8)
+            baseline_mean = r[baseline_idx[0]:baseline_idx[1],:,:].mean(axis=0, keepdims=True)
+            baseline_std = r[baseline_idx[0]:baseline_idx[1],:,:].std(axis=0, keepdims=True)
+        # do z-score normalization
+        r = (r - baseline_mean) / (baseline_std + 1e-10)
 
     return r 
 
@@ -705,3 +727,10 @@ def get_trialtype_colors():
     stims = np.array([[-1,-1], [-1,1], [1,-1], [1,1]])
     colors = ['#6E439A','#2B1644', '#236975','#49BEA3']
     return stims, colors
+
+def get_fixation_baseline_times(times_dict):
+    """
+    Get the baseline period for the given times dictionary.
+    """
+    baseline = [int(times_dict['stim1_on']/2), int(times_dict['stim1_on'])]
+    return baseline
