@@ -11,7 +11,7 @@ import pandas as pd
 import load_data as ld
 
 
-def plot_trial_performance(model_name, condn_phrase, condn_num, ax=None):
+def plot_trial_performance(model_name, condn_phrase, condn_num, ax=None, title=None):
     """
     Plot the trial performance for a given model and condition
     """
@@ -42,7 +42,10 @@ def plot_trial_performance(model_name, condn_phrase, condn_num, ax=None):
     ax.set_ylim(0, 1.1)
     # plt.axhline(y=0.5, color='r', linestyle='--')
     # plt.axhline(y=0.75, color='g', linestyle='--')
-    ax.set_title(model_name[-6:])
+    if title is not None:
+        ax.set_title(title)
+    else:
+        ax.set_title(f'{model_name[-6:]}, {condn_phrase} {condn_num}')
     ax.set_xlabel('Trial Type')
     ax.set_ylabel('Performance')
     # plt.grid()

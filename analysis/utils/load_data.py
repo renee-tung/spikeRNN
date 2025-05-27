@@ -54,7 +54,7 @@ def find_files_keywords(dir_name, keywords):
 
 def load_neural_data(model_name, condn_phrase, condn_num='', 
                      all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/', #all_models_dir='/scratch/all_DMS_models/',
-                     load_LFP=True, load_spikes=True, load_rates=True):
+                     load_LFP=False, load_spikes=False, load_rates=False):
     '''
     Load neural data from a saved model
     condn_phrase is a string specifying the condition to load, eg 'delay150'

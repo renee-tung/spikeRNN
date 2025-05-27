@@ -10,6 +10,7 @@ import pandas as pd
 from sklearn.metrics import pairwise_distances, silhouette_score
 from umap import UMAP
 from sklearn.cluster import KMeans
+import pdb
 
 import load_data as ld
 from bootstrap_method import *
@@ -19,6 +20,14 @@ from bootstrap_method import *
 ''' 
 NEURON TUNING CALCULATIONS
 '''
+
+def count_spikes(spk_times, start, stop):
+    """
+    Count the number of spikes in a given time window.
+    """
+    spk_times = np.asarray(spk_times)
+    return np.sum((spk_times >= start) & (spk_times <= stop))
+
 
 def calc_stim1_tuning(model_name, condn_phrase, condn_num, rates_data=None):
     """
@@ -33,7 +42,7 @@ def calc_stim1_tuning(model_name, condn_phrase, condn_num, rates_data=None):
     # timing data
     times_ms, _,_ = ld.get_times_dict('ds', condn_phrase, condn_num)
 
-
+    # mean across time during stim1 period
     all_stim1_fr = np.mean(rates_data[int(times_ms['stim1_on']):int(times_ms['stim1_off']), :,:], axis=0)
 
     trial_types, trial_idxs = np.unique(trial_labels[:,0], return_inverse=True) # only stim1
@@ -46,12 +55,88 @@ def calc_stim1_tuning(model_name, condn_phrase, condn_num, rates_data=None):
             trials_idx = (trial_idxs == i)
             stim1_rates[i,:] = all_stim1_fr[n_neuron, trials_idx]
         _, p = stats.mannwhitneyu(stim1_rates[0,:], stim1_rates[1,:])
-        if p < 0.05:
+        if p < 0.01:
             tuning[n_neuron] = trial_types[np.argmax([stim1_rates[0,:].mean(), stim1_rates[1,:].mean()])]
         else:
             tuning[n_neuron] = np.nan
 
     return tuning
+
+def calc_stim1_tuning_spikes(model_name, condn_phrase, condn_num, spk_df = None):
+    """
+    for this model + condition, get the stim1 tuning preference for all neurons
+    """
+    if spk_df is None:
+        _, spk_df, _ = ld.load_neural_data(model_name, condn_phrase, condn_num,
+                                                    load_LFP=False, load_spikes=True, load_rates=False)
+    # behavioral data
+    trial_labels, trial_perfs = ld.load_bhv_data(model_name, condn_phrase, condn_num)
+
+    # timing data
+    times_spk, _,_ = ld.get_times_dict('spk', condn_phrase, condn_num)
+
+    # get spike count within stim1 period added as a col to df
+    spk_df['stim1_spkcount'] = spk_df['spk_times'].apply(lambda spikes: count_spikes(spikes, times_spk['stim1_on'], times_spk['stim1_off']))
+
+    trial_types, trial_idxs = np.unique(trial_labels[:,0], return_inverse=True) # only stim1
+    n_trial_types = len(trial_types)
+    n_trials = len(trial_labels)
+
+    n_cells = len(spk_df['cell_id'].unique())
+    tuning = np.zeros(n_cells) # tuning for each neuron
+    for i_neuron in range(n_cells):
+        neuron_df = spk_df[spk_df['cell_id'] == i_neuron]
+        stim1_counts = np.zeros((n_trial_types, int(n_trials/n_trial_types)))
+        for i, trial_type in enumerate(trial_types):
+            trials_idx = (trial_idxs == i)
+            stim1_counts[i,:] = neuron_df['stim1_spkcount'].iloc[trials_idx].values
+
+        _, p = stats.mannwhitneyu(stim1_counts[0,:], stim1_counts[1,:])
+        if p < 0.05:
+            tuning[i_neuron] = trial_types[np.argmax([stim1_counts[0,:].mean(), stim1_counts[1,:].mean()])]
+        else:
+            tuning[i_neuron] = np.nan
+
+    return tuning
+
+def calc_stim1_tuning_spikes_corr(model_name, condn_phrase, condn_num, spk_df = None):
+    """
+    for this model + condition, get the stim1 tuning preference for all neurons
+    """
+    # if spk_df is None:
+    #     _, spk_df, _ = ld.load_neural_data(model_name, condn_phrase, condn_num,
+    #                                                 load_LFP=False, load_spikes=True, load_rates=False)
+    # # behavioral data
+    # trial_labels, trial_perfs = ld.load_bhv_data(model_name, condn_phrase, condn_num)
+
+    # # timing data
+    # times_spk, _,_ = ld.get_times_dict('spk', condn_phrase, condn_num)
+
+    # # get spike count within stim1 period added as a col to df
+    # spk_df['stim1_spkcount'] = spk_df['spk_times'].apply(lambda spikes: count_spikes(spikes, times_spk['stim1_on'], times_spk['stim1_off']))
+
+    # trial_types, trial_idxs = np.unique(trial_labels[:,0], return_inverse=True) # only stim1
+    # n_trial_types = len(trial_types)
+    # n_trials = len(trial_labels)
+
+    # n_cells = len(spk_df['cell_id'].unique())
+    # tuning = np.zeros(n_cells) # tuning for each neuron
+    # for i_neuron in range(n_cells):
+    #     neuron_df = spk_df[spk_df['cell_id'] == i_neuron]
+    #     stim1_counts = []
+    #     for i, trial_type in enumerate(trial_types):
+    #         trials_idx = np.where(trial_idxs == i)[0]
+    #         trials_idx = trials_idx[np.where(trial_perfs[trials_idx] == 1)[0]] # only do trials with correct performance
+    #         stim1_counts.append(neuron_df['stim1_spkcount'].iloc[trials_idx].values)
+
+    #     _, p = stats.mannwhitneyu(stim1_counts[0], stim1_counts[1])
+    #     if p < 0.05:
+    #         tuning[i_neuron] = trial_types[np.argmax([stim1_counts[0].mean(), stim1_counts[1].mean()])]
+    #     else:
+    #         tuning[i_neuron] = np.nan
+
+    # return tuning
+    return "use calc_stim1_tuning_spikes instead, this function is deprecated"
 
 
 def plot_stim1_tuning(tuning, cell_idxs=None, exc_ind = None, ax=None, title=None):
@@ -88,6 +173,7 @@ def plot_stim1_tuning(tuning, cell_idxs=None, exc_ind = None, ax=None, title=Non
     ax.set_xticks(x)
     ax.set_xticklabels(x_labels)
     ax.set_ylabel('Number of neurons')
+    ax.set_ylim([0, 100])
     ax.set_xlabel('Tuning')
     if title is not None:
         ax.set_title(title)
@@ -103,7 +189,7 @@ def plot_stim1_tuning(tuning, cell_idxs=None, exc_ind = None, ax=None, title=Non
 RASTER PLOT FUNCTIONS
 '''
 
-def plot_trial_raster(trial_df, condn_phrase, condn_num, sort=None, title=None, ax=None):
+def plot_trial_raster(trial_df, condn_phrase, condn_num, sort=None, title=None, ax=None, hlines=None):
     """
     Plot a raster plot of all cells in the trial in the given DataFrame.
     
@@ -139,6 +225,10 @@ def plot_trial_raster(trial_df, condn_phrase, condn_num, sort=None, title=None, 
     stim_colors = get_stim_plotting_colors(trial_labels[trial_id,:])
     ax.axvspan(times_ms['stim1_on'], times_ms['stim1_off'], color=stim_colors[0], alpha=0.3)
     ax.axvspan(times_ms['stim2_on'], times_ms['stim2_off'], color=stim_colors[1], alpha=0.3)
+
+    if hlines is not None:
+        for hline in hlines:
+            ax.axhline(y=hline, color='k', linestyle='--')
 
     if title is not None:
         ax.set_title(f'Trial {trial_id}, {trial_labels[trial_id,:]}, perf: {trial_perfs[trial_id]}, {title}')

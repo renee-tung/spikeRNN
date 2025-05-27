@@ -25,6 +25,68 @@ def build_directed_graph(W):
     return G
 
 
+'''
+VISUALIZE CONNECTIVITY
+'''
+
+def plot_num_synaptic_connections(connectivity_df, neuron_inds, synapse_type, ax=None, title=None):
+    """
+    Plot the number pre or post synaptic connections of a group of neurons.
+    
+    Parameters:
+    connectivity_df : pandas DataFrame
+        The connectivity dataframe.
+    neuron_inds : list
+        The indices of the neurons to plot.
+    ax : matplotlib axis
+        The axis to plot on.
+    title : str
+        The title of the plot.
+    """
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(6, 4))
+    
+    for n_neuron, neuron_idx in enumerate(neuron_inds):
+        if synapse_type == 'pre':
+
+            # get the number of presynaptic connections for this neuron
+            presyn_df = connectivity_df[connectivity_df['postsyn_id'] == neuron_idx]
+            # get the number of presynaptic connections for this neuron
+            n_inh = np.sum(presyn_df['presyn_type'] == 'inh')
+            n_exc = np.sum(presyn_df['presyn_type'] == 'exc')
+            num_presyn = len(connectivity_df[connectivity_df['postsyn_id'] == neuron_idx])
+            if n_inh + n_exc != num_presyn:
+                print(f'Neuron {neuron_idx} has {num_presyn} presynaptic connections, but {n_inh} inh and {n_exc} exc')
+        elif synapse_type == 'post':
+            # get the number of postsynaptic connections for this neuron
+            postsyn_df = connectivity_df[connectivity_df['presyn_id'] == neuron_idx]
+            # get the number of postsynaptic connections for this neuron
+            n_inh = np.sum(postsyn_df['postsyn_type'] == 'inh')
+            n_exc = np.sum(postsyn_df['postsyn_type'] == 'exc')
+            num_postsyn = len(connectivity_df[connectivity_df['presyn_id'] == neuron_idx])
+            if n_inh + n_exc != num_postsyn:
+                print(f'Neuron {neuron_idx} has {num_postsyn} postsynaptic connections, but {n_inh} inh and {n_exc} exc')
+        else:
+            raise ValueError('synapse_type must be "pre" or "post"')
+        
+        # plot the number of presynaptic connections for this neuron
+        if n_inh > 0:
+            ax.bar(n_neuron, n_inh, color='blue', alpha=0.5)
+        if n_exc > 0:
+            ax.bar(n_neuron, n_exc, bottom=n_inh, color='red', alpha=0.5)
+
+    # set the x ticks to be the neuron indices
+    ax.set_xticks(np.arange(len(neuron_inds)))
+    ax.set_xticklabels(neuron_inds, rotation=90)
+    # set the y label
+    ax.set_ylabel(f'Number of {synapse_type}synaptic connections')
+    
+    if title is not None:
+        ax.set_title(title)
+    else:
+        ax.set_title(f'Number of {synapse_type}synaptic Connections')
+
+
 
 '''
 VISUALIZE MATRIX
