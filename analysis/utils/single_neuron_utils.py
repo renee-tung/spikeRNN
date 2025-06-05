@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from scipy import stats
+from scipy.io import loadmat
 import pandas as pd
 from sklearn.metrics import pairwise_distances, silhouette_score
 from umap import UMAP
@@ -16,10 +17,11 @@ import load_data as ld
 from bootstrap_method import *
 
 
-
-''' 
-NEURON TUNING CALCULATIONS
 '''
+PROCESSING SPIKE TIMES
+'''
+
+
 
 def count_spikes(spk_times, start, stop):
     """
@@ -27,6 +29,25 @@ def count_spikes(spk_times, start, stop):
     """
     spk_times = np.asarray(spk_times)
     return np.sum((spk_times >= start) & (spk_times <= stop))
+
+
+def calc_lowfr_neurons(spk_df, times_spk, threshold=2):
+    '''
+    Returns the indices of neurons that have no trials above a certain firing rate threshold
+    '''
+    spk_df['total_spkcount'] = spk_df['spk_times'].apply(lambda spikes: count_spikes(spikes, times_spk['stim1_on'], times_spk['T']))
+    n_neurons = len(np.unique(spk_df['cell_id']))
+    n_above_threshold = np.zeros(n_neurons)
+    for i_neuron in range(n_neurons):
+        neuron_df = spk_df[spk_df['cell_id'] == i_neuron]
+        n_above_threshold[i_neuron] = np.sum(neuron_df['total_spkcount'] >= (times_spk['T']-times_spk['stim1_on'])/times_spk['fs'] * threshold)
+        
+    return np.where(n_above_threshold == 0)[0] # these neurons had no trials above desired fr threshold
+
+
+''' 
+NEURON TUNING CALCULATIONS
+'''
 
 
 def calc_stim1_tuning(model_name, condn_phrase, condn_num, rates_data=None):
@@ -62,13 +83,28 @@ def calc_stim1_tuning(model_name, condn_phrase, condn_num, rates_data=None):
 
     return tuning
 
-def calc_stim1_tuning_spikes(model_name, condn_phrase, condn_num, spk_df = None):
+def calc_stim1_tuning_spikes(model_name, condn_phrase, condn_num, spk_df = None, 
+                             all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'):
     """
     for this model + condition, get the stim1 tuning preference for all neurons
     """
+    
+    # see if this is already saved
+    tuning_filepath = f'{all_models_dir}/{model_name}/tuning_{condn_phrase}_{condn_num}.mat'
+    if os.path.exists(tuning_filepath):
+        tuning = loadmat(tuning_filepath)['tuning'][0]
+        return tuning
+    
+    
     if spk_df is None:
         _, spk_df, _ = ld.load_neural_data(model_name, condn_phrase, condn_num,
                                                     load_LFP=False, load_spikes=True, load_rates=False)
+        # results = ld.load_neural_data(model_name, condn_phrase, condn_num, remove_lowfr=True,
+        #                                         load_LFP=False, load_spikes=True, load_rates=False)
+        # spk_df = results['spk_df']
+        # cell_ids = results['idxs_old']
+        
+        
     # behavioral data
     trial_labels, trial_perfs = ld.load_bhv_data(model_name, condn_phrase, condn_num)
 
@@ -84,8 +120,8 @@ def calc_stim1_tuning_spikes(model_name, condn_phrase, condn_num, spk_df = None)
 
     n_cells = len(spk_df['cell_id'].unique())
     tuning = np.zeros(n_cells) # tuning for each neuron
-    for i_neuron in range(n_cells):
-        neuron_df = spk_df[spk_df['cell_id'] == i_neuron]
+    for i_neuron, neuron_id in enumerate(spk_df['cell_id'].unique()):
+        neuron_df = spk_df[spk_df['cell_id'] == neuron_id]
         stim1_counts = np.zeros((n_trial_types, int(n_trials/n_trial_types)))
         for i, trial_type in enumerate(trial_types):
             trials_idx = (trial_idxs == i)
@@ -323,7 +359,7 @@ def plot_neuron_rates(model_name, cell_id, condn_phrase, condn_num, rates_data =
     trial_labels, trial_perfs = ld.load_bhv_data(model_name, condn_phrase, condn_num)
 
     # get timing info
-    times_ms, times_real, fs_dict = ld.get_times_dict('ds', condn_phrase, condn_num) #ds is fs=1000, ms
+    times_ms, times_real, fs_dict = ld.get_times_dict('ds', condn_phrase, condn_num, model_name=model_name) #ds is fs=1000, ms
 
     if baseline:
         baseline_idx = get_fixation_baseline_times(times_ms)

@@ -19,7 +19,7 @@ clear; clc
 
 normalize_ipscs = 0;
 lesion_connections = 0; % if not lesioning put 0, else 'ii' etc
-delay = 50; % 150 is the standard "testing" delay duration
+delay = 150; % 150 is the standard "testing" delay duration
 n_trials_per_condn = 250;
 
 

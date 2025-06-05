@@ -53,7 +53,50 @@ def plot_trial_performance(model_name, condn_phrase, condn_num, ax=None, title=N
     return ax
 
 
+def plot_paired_trial_performance(model_name, condn_phrase1, condn_num1, condn_phrase2, condn_num2, ax=None, title=None):
+    """
+    Plot the paired trial performance for two conditions
+    """
+    # Load the data
+    trial_labels1, trial_perfs1 = ld.load_bhv_data(model_name, condn_phrase1, condn_num1)
+    trial_labels2, trial_perfs2 = ld.load_bhv_data(model_name, condn_phrase2, condn_num2)
 
+    # Get the unique trial types and their indices
+    unique_labels = np.unique(trial_labels1, axis=0)
+    stims, colors = get_trialtype_colors()
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(6, 4))
+
+    for i in range(unique_labels.shape[0]):
+        trial_type = unique_labels[i]
+        trial_indices1 = np.where(np.all(trial_labels1 == trial_type, axis=1))[0]
+        trial_indices2 = np.where(np.all(trial_labels2 == trial_type, axis=1))[0]
+
+        if len(trial_indices1) > 0 and len(trial_indices2) > 0:
+            trial_performance1 = trial_perfs1[trial_indices1]
+            trial_performance2 = trial_perfs2[trial_indices2]
+
+            # Plot paired performance
+            ax.plot([i - 0.15, i + 0.15], [trial_performance1.mean(), trial_performance2.mean()], color=colors[i], marker='o')
+            # ax.errorbar(i - 0.15, trial_performance1.mean(), yerr=trial_performance1.std(), fmt='o', color=colors[i], capsize=5)
+            # ax.errorbar(i + 0.15, trial_performance2.mean(), yerr=trial_performance2.std(), fmt='o', color=colors[i], capsize=5)
+
+            # Print performance on top of points
+            ax.text(i - 0.15, trial_performance1.mean() + 0.02, f'{trial_performance1.mean():.2f}', ha='center', va='bottom')
+            ax.text(i + 0.15, trial_performance2.mean() + 0.02, f'{trial_performance2.mean():.2f}', ha='center', va='bottom')
+
+    ax.set_xticks(range(len(unique_labels)), [str(label) for label in unique_labels])
+    ax.set_xlim(-0.5, len(unique_labels) - 0.5)
+    ax.set_ylim(0, 1.1)
+    if title is not None:
+        ax.set_title(title)
+    else:
+        ax.set_title(f'{model_name[-6:]}, {condn_phrase1} {condn_num1} vs {condn_phrase2} {condn_num2}')
+    ax.set_xlabel('Trial Type')
+    ax.set_ylabel('Performance')
+    
+    return ax
 
 
 

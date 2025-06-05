@@ -1,11 +1,15 @@
 % Name: Robert Kim
 % Date: October 11, 2019
 % Email: rkim@salk.edu
-% LIF_network_RK.m
+% LIF_network_lesion_fnc.m
 % Description: Function to perform the one-to-one mapping
 % from a trained rate RNN to a spiking RNN (leaky integrate-and-fire).
 % NOTE: LIF network implementation modified from LIFFORCESINE.m from NicolaClopath2017 
 % (https://senselab.med.yale.edu/modeldb/ShowModel.cshtml?model=190565&file=/NicolaClopath2017/)
+
+
+% this function will take in an extra variable, connection_type, which will
+% specify a specific connection type to lesion.
 
 function [W, REC, spk, rs, all_fr, out, params] = LIF_network_lesion_fnc(model_path,...
 scaling_factor, u, stims, downsample, connection_type)
