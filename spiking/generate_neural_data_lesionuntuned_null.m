@@ -1,10 +1,7 @@
 %% GENERATE DATA
 
-% Script to generate and save trials of DMS data to computer for further analysis
-
-% This is specifically for generating trials where untuned neurons are
-% lesioned (whether presynaptically or postsynaptically)
-
+% Script to generate and save trials of DMS data to computer for further
+% analysis
 
 
 % Will include:

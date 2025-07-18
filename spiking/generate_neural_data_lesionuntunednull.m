@@ -2,9 +2,9 @@
 
 % Script to generate and save trials of DMS data to computer for further analysis
 
-% This is specifically for generating trials where untuned neurons are
-% lesioned (whether presynaptically or postsynaptically)
-
+% This script goes with generate_neural_data_lesionuntuned.m
+% Here, we randomly lesion neuron connections, proportional to the number
+% of untuned neurons, and check the performance
 
 
 % Will include:
@@ -21,7 +21,7 @@ clear; clc
 %% some params for this data
 
 normalize_ipscs = 0;
-lesion_connections = 'untunedpost'; % if not lesioning put 0, else 'ii' etc
+lesion_connections = 'untunednull'; % if not lesioning put 0, else 'ii' etc
 delay = 150; % 150 is the standard "testing" delay duration
 n_trials_per_condn = 250;
 
@@ -159,6 +159,7 @@ for n_model = 1:length(model_list)
     % get untuned neuron idxs for this model
     load([this_model_dir,'/','tuning_delay_',num2str(delay),'.mat']);
     untuned_idx = untuned_idx + 1; % change from python to matlab indexing
+    n_untuned = length(untuned_idx);
     if isempty(untuned_idx)
         disp('no untuned neurons, skipping this model')
         continue
@@ -187,10 +188,11 @@ for n_model = 1:length(model_list)
             parfor n_trial=1:n_trials_per_condn
                 % [~, ~, spk_train, rates, ~, outputs, params] = LIF_network_fnc(model_path, scaling_factor,...
                 %     u, stims, down_sample, use_initial_weights);
-                % [~, ~, spk_train, rates, ~, outputs, params] = LIF_network_lesion_neurons_fnc(model_path, scaling_factor,...
-                %     u, stims, down_sample, untuned_idx, "presynaptic");
+                random_idx = randsample(N, n_untuned);
                 [~, ~, spk_train, rates, ~, outputs, params] = LIF_network_lesion_neurons_fnc(model_path, scaling_factor,...
-                    u, stims, down_sample, untuned_idx, "postsynaptic");
+                    u, stims, down_sample, random_idx, "presynaptic");
+                % [~, ~, spk_train, rates, ~, outputs, params] = LIF_network_lesion_neurons_fnc(model_path, scaling_factor,...
+                %     u, stims, down_sample, untuned_idx, "postsynaptic");
                 
                 % get spike times, convert to 0-indexing, and store
                 spk_times = arrayfun(@(i) find(spk_train(i,:) ~= 0)-1, (1:size(spk_train,1))', 'UniformOutput', false);

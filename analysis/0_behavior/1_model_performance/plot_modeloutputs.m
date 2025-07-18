@@ -39,8 +39,8 @@ addpath('/home/nuttidalab/Documents/renee/spikeRNN/spiking')
 % model_name = 'Task_xor_N_200_Taus_4.0_25.0_Act_sigmoid_2019_09_06_204500.mat' % bad model, but improving
 % model_name = 'Task_xor_N_200_Taus_4.0_25.0_Act_sigmoid_2019_09_06_191340.mat' % bad model, at chance
 % model_name = 'Task_xor_N_200_Taus_4.0_25.0_Act_sigmoid_2019_11_06_075450.mat' % bad model, at chance
-% model_name = 'Task_xor_N_200_Taus_4.0_25.0_Act_sigmoid_2019_09_07_012954.mat' % bad model, below chance
-model_name = 'Task_xor_N_200_Taus_4.0_25.0_Act_sigmoid_2019_09_06_191643.mat'
+model_name = 'Task_xor_N_200_Taus_4.0_25.0_Act_sigmoid_2019_09_07_012954.mat' % bad model, below chance
+% model_name = 'Task_xor_N_200_Taus_4.0_25.0_Act_sigmoid_2019_09_07_005938.mat'
 n_type = 2; % 1 for good, 2 for bad (just for plotting colors)
 
 % model_name = 'Task_xor_N_200_Taus_4.0_25.0_Act_sigmoid_2019_09_06_152659.mat'; % good model
@@ -53,8 +53,9 @@ model_dir_path = fullfile(task_dir, model_name(1:end-4)); % Folder for model res
 % colorby = "correct"; % "correct" or "stim"
 colorby = "stim";
 
-% lesion = "none";
-lesion = "untuned";
+lesion = "none";
+% lesion = "untuned";
+% lesion = "null";
 
 
 file_path = fullfile(task_dir, model_name);
@@ -93,6 +94,7 @@ stim2_offset = (stim_on + 2 * stim_dur + delay) / fs_rate * fs_spk;
 model_dir_path = fullfile(task_dir, model_name(1:end-4)); % Folder for model results
 load([model_dir_path,'/','tuning_delay_',num2str(delay),'.mat']);
 untuned_idx = untuned_idx + 1; % change from python to matlab indexing
+n_untuned = length(untuned_idx);
 
 % Model eval on 100 random trials
 eval_perf = zeros(n_trials,1); % Store models' performance
@@ -106,6 +108,10 @@ parfor i = 1:n_trials % For 100 trials
     elseif lesion == "untuned"
         [~, ~, ~, ~, ~, eval_o, ~] = LIF_network_lesion_neurons_fnc(file_path, scaling_factor,...
                         eval_u, stims, down_sample, untuned_idx, "presynaptic");
+    elseif lesion == "null"
+        random_idx = randsample(N, n_untuned);
+        [~, ~, ~, ~, ~, eval_o, ~] = LIF_network_lesion_neurons_fnc(file_path, scaling_factor,...
+                        eval_u, stims, down_sample, random_idx, "presynaptic");
     end
     
     if colorby == "stim"
@@ -170,12 +176,21 @@ if colorby=="correct"
     legend([h1(1),h2(1)], {'Correct','Incorrect'});
     legend('AutoUpdate','off'); 
 elseif colorby == "stim"
-    h1=plot(o_array(label_array == 1,:)', 'Color', plotcolor1, 'DisplayName', '+1/+1');
-    h2=plot(o_array(label_array == 2,:)', 'Color', plotcolor2, 'DisplayName', '+1/-1');
-    h3=plot(o_array(label_array == 3,:)', 'Color', plotcolor3, 'DisplayName', '-1/+1');
-    h4=plot(o_array(label_array == 4,:)', 'Color', plotcolor4, 'DisplayName', '-1/-1');
+    % h1=plot(o_array(label_array == 1,:)', 'Color', plotcolor1, 'DisplayName', '+1/+1');
+    % h2=plot(o_array(label_array == 2,:)', 'Color', plotcolor2, 'DisplayName', '+1/-1');
+    % h3=plot(o_array(label_array == 3,:)', 'Color', plotcolor3, 'DisplayName', '-1/+1');
+    % h4=plot(o_array(label_array == 4,:)', 'Color', plotcolor4, 'DisplayName', '-1/-1');
+    % legend([h1(1); h2(1); h3(1); h4(1)], {'+1/+1';'+1/-1';'-1/+1';'-1/-1'})
+    % legend('AutoUpdate','off'); 
+
+    h1=plot(mean(o_array(label_array == 1,:),1)', 'Color', plotcolor1, 'DisplayName', '+1/+1','LineWidth',3);
+    h2=plot(mean(o_array(label_array == 2,:),1)', 'Color', plotcolor2, 'DisplayName', '+1/-1','LineWidth',3);
+    h3=plot(mean(o_array(label_array == 3,:),1)', 'Color', plotcolor3, 'DisplayName', '-1/+1','LineWidth',3);
+    h4=plot(mean(o_array(label_array == 4,:),1)', 'Color', plotcolor4, 'DisplayName', '-1/-1','LineWidth',3);
     legend([h1(1); h2(1); h3(1); h4(1)], {'+1/+1';'+1/-1';'-1/+1';'-1/-1'})
     legend('AutoUpdate','off'); 
+
+
 end
 xline(stim1_onset/fs_spk*fs_ds, 'Color','k','LineWidth',2)
 xline(stim1_offset/fs_spk*fs_ds, 'Color','k','LineWidth',2)
@@ -188,7 +203,7 @@ xticks(x)
 xticklabels(x/fs_ds*1000)
 ylabel('Output')
 fontsize(16,"points")
-% ylim([-3 3])
+ylim([-1 1])
 
 % saveas(gcf, [models_type,'_output.svg'],'svg')
 

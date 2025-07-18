@@ -358,7 +358,7 @@ def get_connectivity_df(model_name, condn_phrase, condn_num, remove_lowfr=False)
     Get the connectivity data for a given model
     '''
     mat_data = get_model(model_name)
-    final_w = get_weights(model_name)
+    final_w = get_weights(model_name, condn_phrase, condn_num)
     exc_ind = np.where(mat_data['exc'] == 1)[0]
     
     # Initialize list for flattened rows
@@ -431,7 +431,7 @@ def get_models_by_perf(low_cutoff, high_cutoff, condn_phrase, condn_num='',
             model_names.append(model_name)
     print(f'Found {len(model_perfs)} models with performance between {low_cutoff} and {high_cutoff}')
     
-    return model_names, model_perfs
+    return model_names, np.array(model_perfs)
 
 
 
