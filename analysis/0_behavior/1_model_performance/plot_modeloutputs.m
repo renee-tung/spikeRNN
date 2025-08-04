@@ -211,3 +211,11 @@ ylim([-1 1])
 % eval_perf_mean = eval_perf_mean_all;
 % save(save_name, 'eval_perf_mean')
 % end
+
+
+% figure; hold on;
+% plot(u(1,:), 'Color','k', 'LineWidth',2)
+% plot(u(2,:), 'Color','k', 'LineWidth',2);
+% plot(o, 'color','g', 'LineWidth',2);
+% ylim([-1.1 1.1]);
+% xticklabels(0:250:500/.2)

@@ -416,6 +416,29 @@ def get_weights(model_name, condn_phrase, condn_num, remove_lowfr=False,
     
     return final_w
 
+def get_weights_init(model_name, condn_phrase, condn_num, remove_lowfr=False,
+                all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'): #all_models_dir='/scratch/all_DMS_models/',):
+    '''
+    Get the weights for a given model
+    '''
+    mat_data = get_model(model_name, all_models_dir)
+    
+    w = mat_data['w0']
+    m = mat_data['m']
+    scaling_factor = mat_data['opt_scaling_factor'][0][0]
+    final_w = np.matmul(w, m) / scaling_factor
+    taus_gaus = mat_data['taus_gaus']
+    taus = mat_data['taus'].flatten()
+    taus_sig = (1/(1+np.exp(-taus_gaus))*(taus[1] - taus[0])) + taus[0]
+    
+    if remove_lowfr:
+        neuron_rmv_idxs = load_lowfr_idxs(model_name, condn_phrase, condn_num, threshold=2)
+        results = rmv_lowfr_neurons(neuron_rmv_idxs, len(w), W = final_w)
+        final_w = results['W']
+        
+    
+    return final_w
+
 
 def get_models_by_perf(low_cutoff, high_cutoff, condn_phrase, condn_num='', 
                        all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'):
