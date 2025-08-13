@@ -26,7 +26,8 @@
 clear; clc;
 
 % Directory containing all the trained rate RNN model .mat files
-model_dir = '/home/nuttidalab/Documents/spikeRNN/models/xor/P_rec_0.2_Taus_4.0_25.0'; 
+% model_dir = '/home/nuttidalab/Documents/spikeRNN/models/xor/P_rec_0.2_Taus_4.0_25.0'; 
+model_dir = '/home/nuttidalab/Documents/renee/jitter_models/models/xor/P_rec_0.2_Taus_4.0_25.0/';
 
 mat_files = dir(fullfile(model_dir, '*.mat'));
 

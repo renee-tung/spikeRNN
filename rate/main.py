@@ -81,6 +81,10 @@ parser.add_argument("--decay_taus", required=True,
         nargs='+', type=float,
         help="Synaptic decay time-constants (in time-steps). If only one number is given, then all\
         time-constants set to that value (i.e. not trainable). Otherwise specify two numbers (min, max).")
+parser.add_argument("--jitter_onset", required=False,
+        type=int, default=0, help="Jitter stimulus onset by up to this many time-steps")
+parser.add_argument("--jitter_delay", required=False,
+        type=int, default=0, help="Jitter maintenance period by up to this many time-steps")
 args = parser.parse_args()
 
 # Set up the output dir where the output model will be saved
@@ -114,11 +118,11 @@ if args.task.lower() == 'go-nogo':
 elif args.task.lower() == 'xor':
     # XOR task 
     settings = {
-            'T': 300, # trial duration (in steps)
-            'stim_on': 50, # input stim onset (in steps)
+            'T': 500, # trial duration (in steps)
+            'stim_on': 200, # input stim onset (in steps)
             'stim_dur': 50, # input stim duration (in steps)
-            'delay': 10, # delay b/w the two stimuli (in steps)
-            'DeltaT': 1, # sampling rate
+            'delay': 15, # delay b/w the two stimuli (in steps)
+            'DeltaT': 1, # sampling rated
             'taus': args.decay_taus, # decay time-constants (in steps)
             'task': args.task.lower(), # task name
             }
@@ -235,8 +239,17 @@ if args.mode.lower() == 'train':
                 u, label = generate_input_stim_go_nogo(settings)
                 target = generate_target_continuous_go_nogo(settings, label)
             elif args.task.lower() == 'xor':
-                u, label = generate_input_stim_xor(settings)
-                target = generate_target_continuous_xor(settings, label)
+                # add time jitter to stimulus onset and delay period
+                if args.jitter_onset > 0 or args.jitter_delay > 0:
+                    settings_jitter = settings.copy()
+                    settings_jitter['stim_on'] = settings['stim_on'] + np.random.randint(-args.jitter_onset, args.jitter_onset+1)
+                    if args.jitter_delay > 0:
+                        settings_jitter['delay'] = settings['delay'] + np.random.randint(-args.jitter_delay, args.jitter_delay+1)
+                    u, label = generate_input_stim_xor(settings_jitter)
+                    target = generate_target_continuous_xor(settings_jitter, label)
+                else:
+                    u, label = generate_input_stim_xor(settings)
+                    target = generate_target_continuous_xor(settings, label)
             elif args.task.lower() == 'mante':
                 u, label = generate_input_stim_mante(settings)
                 target = generate_target_continuous_mante(settings, label)

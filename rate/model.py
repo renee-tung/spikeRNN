@@ -367,8 +367,10 @@ def generate_target_continuous_xor(settings, label):
     z = np.zeros((1, T))
     if label == 'same':
         z[0, 10+task_end_T:10+task_end_T+100] = 1
+        # z[0, 10+task_end_T:] = 1
     elif label == 'diff':
         z[0, 10+task_end_T:10+task_end_T+100] = -1
+        # z[0, 10+task_end_T:] = -1
 
     return np.squeeze(z)
 

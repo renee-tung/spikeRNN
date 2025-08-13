@@ -11,12 +11,13 @@ import pandas as pd
 import load_data as ld
 
 
-def plot_trial_performance(model_name, condn_phrase, condn_num, ax=None, title=None):
+def plot_trial_performance(model_name, condn_phrase, condn_num, ax=None, title=None,
+                           all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'):
     """
     Plot the trial performance for a given model and condition
     """
     # Load the data
-    trial_labels, trial_perfs = ld.load_bhv_data(model_name, condn_phrase, condn_num)
+    trial_labels, trial_perfs = ld.load_bhv_data(model_name, condn_phrase, condn_num, all_models_dir)
 
     # Get the unique trial types and their indices
     unique_labels = np.unique(trial_labels, axis=0)
@@ -54,13 +55,14 @@ def plot_trial_performance(model_name, condn_phrase, condn_num, ax=None, title=N
 
 
 def plot_paired_trial_performance(model_name, condn_phrase1, condn_num1, condn_phrase2, condn_num2, 
-                                  ax=None, title=None, text=True):
+                                  ax=None, title=None, text=True,
+                                    all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'):
     """
     Plot the paired trial performance for two conditions
     """
     # Load the data
-    trial_labels1, trial_perfs1 = ld.load_bhv_data(model_name, condn_phrase1, condn_num1)
-    trial_labels2, trial_perfs2 = ld.load_bhv_data(model_name, condn_phrase2, condn_num2)
+    trial_labels1, trial_perfs1 = ld.load_bhv_data(model_name, condn_phrase1, condn_num1, all_models_dir)
+    trial_labels2, trial_perfs2 = ld.load_bhv_data(model_name, condn_phrase2, condn_num2, all_models_dir)
 
     # Get the unique trial types and their indices
     unique_labels = np.unique(trial_labels1, axis=0)

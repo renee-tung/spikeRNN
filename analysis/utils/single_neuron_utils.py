@@ -38,11 +38,14 @@ def calc_lowfr_neurons(spk_df, times_spk, threshold=2):
     spk_df['total_spkcount'] = spk_df['spk_times'].apply(lambda spikes: count_spikes(spikes, times_spk['stim1_on'], times_spk['T']))
     n_neurons = len(np.unique(spk_df['cell_id']))
     n_above_threshold = np.zeros(n_neurons)
+    avg_fr_neuron = np.zeros(n_neurons)
     for i_neuron in range(n_neurons):
         neuron_df = spk_df[spk_df['cell_id'] == i_neuron]
-        n_above_threshold[i_neuron] = np.sum(neuron_df['total_spkcount'] >= (times_spk['T']-times_spk['stim1_on'])/times_spk['fs'] * threshold)
-        
-    return np.where(n_above_threshold == 0)[0] # these neurons had no trials above desired fr threshold
+        avg_fr_neuron[i_neuron] = np.mean(neuron_df['total_spkcount']) / ((times_spk['T'] - times_spk['stim1_on']) / times_spk['fs'])
+    #     n_above_threshold[i_neuron] = np.sum(neuron_df['total_spkcount'] >= (times_spk['T']-times_spk['stim1_on'])/times_spk['fs'] * threshold)
+
+    return np.where(avg_fr_neuron < threshold)[0] # these neurons had no trials above desired fr threshold
+    # return np.where(n_above_threshold == 0)[0] # these neurons had no trials above desired fr threshold
 
 
 ''' 
@@ -50,18 +53,21 @@ NEURON TUNING CALCULATIONS
 '''
 
 
-def calc_stim1_tuning(model_name, condn_phrase, condn_num, rates_data=None):
+def calc_stim1_tuning(model_name, condn_phrase, condn_num, rates_data=None,
+                      all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'):
     """
     for this model + condition, get the stim1 tuning preference for all neurons
     """
     if rates_data is None:
         _, _, rates_data = ld.load_neural_data(model_name, condn_phrase, condn_num,
-                                                    load_LFP=False, load_spikes=False, load_rates=True)
+                                                    load_LFP=False, load_spikes=False, load_rates=True,
+                                                    all_models_dir=all_models_dir)
     # behavioral data
-    trial_labels, trial_perfs = ld.load_bhv_data(model_name, condn_phrase, condn_num)
+    trial_labels, trial_perfs = ld.load_bhv_data(model_name, condn_phrase, condn_num,
+                                                all_models_dir=all_models_dir)
 
     # timing data
-    times_ms, _,_ = ld.get_times_dict('ds', condn_phrase, condn_num)
+    times_ms, _,_ = ld.get_times_dict('ds', condn_phrase, condn_num, all_models_dir=all_models_dir) #ds is fs=1000, ms
 
     # mean across time during stim1 period
     all_stim1_fr = np.mean(rates_data[int(times_ms['stim1_on']):int(times_ms['stim1_off']), :,:], axis=0)
@@ -98,7 +104,8 @@ def calc_stim1_tuning_spikes(model_name, condn_phrase, condn_num, spk_df = None,
     
     if spk_df is None:
         _, spk_df, _ = ld.load_neural_data(model_name, condn_phrase, condn_num,
-                                                    load_LFP=False, load_spikes=True, load_rates=False)
+                                                    load_LFP=False, load_spikes=True, load_rates=False,
+                                                    all_models_dir=all_models_dir)
         # results = ld.load_neural_data(model_name, condn_phrase, condn_num, remove_lowfr=True,
         #                                         load_LFP=False, load_spikes=True, load_rates=False)
         # spk_df = results['spk_df']
@@ -106,10 +113,11 @@ def calc_stim1_tuning_spikes(model_name, condn_phrase, condn_num, spk_df = None,
         
         
     # behavioral data
-    trial_labels, trial_perfs = ld.load_bhv_data(model_name, condn_phrase, condn_num)
+    trial_labels, trial_perfs = ld.load_bhv_data(model_name, condn_phrase, condn_num,
+                                                 all_models_dir=all_models_dir)
 
     # timing data
-    times_spk, _,_ = ld.get_times_dict('spk', condn_phrase, condn_num)
+    times_spk, _,_ = ld.get_times_dict('spk', condn_phrase, condn_num, all_models_dir=all_models_dir)
 
     # get spike count within stim1 period added as a col to df
     spk_df['stim1_spkcount'] = spk_df['spk_times'].apply(lambda spikes: count_spikes(spikes, times_spk['stim1_on'], times_spk['stim1_off']))
@@ -337,7 +345,7 @@ FIRING RATE FUNCTIONS
 '''
 
 def plot_neuron_rates(model_name, cell_id, condn_phrase, condn_num, rates_data = None, cut_off = 50, baseline=False,
-                      ax=None, title=None):
+                      ax=None, title=None, all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'):
     """
     Plot the firing rates of a neuron across trials.
     
@@ -350,16 +358,19 @@ def plot_neuron_rates(model_name, cell_id, condn_phrase, condn_num, rates_data =
     # Load the firing rates
     if rates_data is None:
         _, _, rates_data = ld.load_neural_data(model_name, condn_phrase, condn_num,
-                                                    load_LFP=False, load_spikes=False, load_rates=True)
+                                                    load_LFP=False, load_spikes=False, load_rates=True,
+                                                    all_models_dir=all_models_dir)
 
-    exc_ind, inh_ind = ld.get_celltype_label(model_name)
+    exc_ind, inh_ind = ld.get_celltype_label(model_name, all_models_dir=all_models_dir)
     cell_type = 'exc' if cell_id in exc_ind else 'inh'
 
     # behavioral data
-    trial_labels, trial_perfs = ld.load_bhv_data(model_name, condn_phrase, condn_num)
+    trial_labels, trial_perfs = ld.load_bhv_data(model_name, condn_phrase, condn_num,
+                                                    all_models_dir=all_models_dir)
 
     # get timing info
-    times_ms, times_real, fs_dict = ld.get_times_dict('ds', condn_phrase, condn_num, model_name=model_name) #ds is fs=1000, ms
+    times_ms, times_real, fs_dict = ld.get_times_dict('ds', condn_phrase, condn_num, model_name=model_name,
+                                                       all_models_dir=all_models_dir) #ds is fs=1000, ms
 
     if baseline:
         baseline_idx = get_fixation_baseline_times(times_ms)

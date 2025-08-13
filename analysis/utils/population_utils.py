@@ -28,16 +28,18 @@ def plot_trajectory_pca(model_name, condn_phrase, condn_num, pca_obj = None,
                     neuron_ids=None, rates_data=None, trial_labels=None,
                     cut_off = 50, ds=10, plot=1,
                     linestyle='-', alpha=0.9,
-                    ax=None, title=None):
+                    ax=None, title=None,
+                    all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'):
     """
     Plot the trajectory of the population activity for a given model and condition
     """
     # Load the data
     if rates_data is None:
-        _, _, rates_data = ld.load_neural_data(model_name, condn_phrase, condn_num, load_rates=True)
+        _, _, rates_data = ld.load_neural_data(model_name, condn_phrase, condn_num, load_rates=True, 
+                                                all_models_dir=all_models_dir)
     if trial_labels is None:
-        trial_labels, _ = ld.load_bhv_data(model_name, condn_phrase, condn_num)
-    
+        trial_labels, _ = ld.load_bhv_data(model_name, condn_phrase, condn_num, all_models_dir=all_models_dir)
+
     if neuron_ids is not None: # trim the population activity to the specified neurons
         rates_data = rates_data[:, neuron_ids, :]
 
@@ -46,7 +48,8 @@ def plot_trajectory_pca(model_name, condn_phrase, condn_num, pca_obj = None,
         fig = plt.figure(figsize=(6, 4))
         ax = fig.add_subplot(111, projection='3d')
         
-    times_ms, times_real, fs_dict = ld.get_times_dict('ds', condn_phrase, condn_num, model_name=model_name) #ds is fs=1000, ms
+    times_ms, times_real, fs_dict = ld.get_times_dict('ds', condn_phrase, condn_num, 
+                                                      model_name=model_name, all_models_dir=all_models_dir) #ds is fs=1000, ms
 
     stims, colors = ld.get_trialtype_colors()
        
@@ -79,15 +82,28 @@ def plot_trajectory_pca(model_name, condn_phrase, condn_num, pca_obj = None,
     varexp = pca_obj.explained_variance_ratio_ # 3 x 1
     print(f'PCA explained variance: {varexp}, total: {varexp.sum()}')
     rates_comp = rates_pca.reshape(len(trial_types), -1, 3) # trials x time x 3
-    # gaussian smooth
     rates_comp = gaussian_filter1d(rates_comp, sigma=50, axis=1)  # smooth over time axis
     
+    # Stimulus times in original timepoints, then downsampled
+    stim1_on = int(times_ms['stim1_on'] - cut_off)
+    stim1_off = int(times_ms['stim1_off'] - cut_off)
+    stim2_on = int(times_ms['stim2_on'] - cut_off)
+    stim2_off = int(times_ms['stim2_off'] - cut_off)
+
     # downsample
     if ds is not None:
         rates_comp = rates_comp[:, ::ds, :]  # downsample
-        cut_off = int(cut_off / ds)  # adjust cut_off for downsampling
-        times_ms = {k: int(v / ds) for k, v in times_ms.items()}  # adjust times for downsampling
-    
+        stim1_on = int(stim1_on // ds)  # adjust stim times for downsampling
+        stim1_off = int(stim1_off // ds)
+        stim2_on = int(stim2_on // ds)
+        stim2_off = int(stim2_off // ds)
+
+    # # Stimulus times in original timepoints, then downsampled
+    # stim1_on = int((times_ms['stim1_on'] - cut_off) // ds)
+    # stim1_off = int((times_ms['stim1_off'] - cut_off) // ds)
+    # stim2_on = int((times_ms['stim2_on'] - cut_off) // ds)
+    # stim2_off = int((times_ms['stim2_off'] - cut_off) // ds)
+
     # plot the trajectory in 3D
     for i, trial_type in enumerate(trial_types):
         color_idx = matching_stim_idx(stims, trial_type)
@@ -95,10 +111,6 @@ def plot_trajectory_pca(model_name, condn_phrase, condn_num, pca_obj = None,
                 color=colors[color_idx], label=str(trial_type), linestyle=linestyle, alpha=alpha)
         
         # plot over stim times with thicker lines
-        stim1_on = int(times_ms['stim1_on'] - cut_off)
-        stim1_off = int(times_ms['stim1_off'] - cut_off)
-        stim2_on = int(times_ms['stim2_on'] - cut_off)
-        stim2_off = int(times_ms['stim2_off'] - cut_off)
         ax.plot(rates_comp[i, stim1_on:stim1_off, 0],
                 rates_comp[i, stim1_on:stim1_off, 1],
                 rates_comp[i, stim1_on:stim1_off, 2],

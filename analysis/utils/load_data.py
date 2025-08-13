@@ -135,8 +135,8 @@ def load_lowfr_idxs(model_name, condn_phrase, condn_num='', threshold=2,
     lowfr_path = find_files_keywords(model_dir, ['lowfr', condn_key, str(threshold)])
     
     if not lowfr_path:
-        _,spk_df,_ = load_neural_data(model_name, condn_phrase, condn_num, load_spikes=True)
-        times_spk, _, _ = get_times_dict('spk', condn_phrase, condn_num, model_name)
+        _,spk_df,_ = load_neural_data(model_name, condn_phrase, condn_num, load_spikes=True, all_models_dir=all_models_dir)
+        times_spk, _, _ = get_times_dict('spk', condn_phrase, condn_num, model_name, all_models_dir=all_models_dir)
         neuron_rmv_idxs = sn.calc_lowfr_neurons(spk_df, times_spk, threshold=threshold)
         np.save(os.path.join(model_dir, f'lowfr_{condn_key}_{threshold}.npy'), neuron_rmv_idxs)
     else:
@@ -158,7 +158,7 @@ def load_neural_data(model_name, condn_phrase, condn_num='',
     condn_key = f'{condn_phrase}{condn_num}'
     neuraldata_path = find_files_keywords(model_dir, ['neuraldata', condn_key])[0]
     
-    exc_ind, inh_ind = get_celltype_label(model_name, condn_phrase, condn_num)
+    exc_ind, inh_ind = get_celltype_label(model_name, condn_phrase, condn_num, all_models_dir=all_models_dir)
 
     # Load the data
     f = h5py.File(neuraldata_path, 'r')
@@ -207,7 +207,7 @@ def load_neural_data(model_name, condn_phrase, condn_num='',
         rates = None
         
     if remove_lowfr:
-        neuron_rmv_idxs = load_lowfr_idxs(model_name, condn_phrase, condn_num, threshold=2)
+        neuron_rmv_idxs = load_lowfr_idxs(model_name, condn_phrase, condn_num, threshold=2, all_models_dir=all_models_dir)
         results = rmv_lowfr_neurons(neuron_rmv_idxs, N, spk_df=spk_times_df, rates_data=rates, lfp_data=lfp_data, 
                       connectivity_df=None, W=None, exc_ind=exc_ind, inh_ind = inh_ind)
         return results
@@ -287,7 +287,7 @@ def get_times_dict(fs_wanted, condn_phrase, condn_num='',
         model_name = get_immediate_subdirs(all_models_dir)[0]
 
     # Get timing data
-    times_rate, times_real, fs_dict = load_timing_data(model_name, condn_phrase, condn_num, all_models_dir)
+    times_rate, times_real, fs_dict = load_timing_data(model_name, condn_phrase, condn_num, all_models_dir=all_models_dir)
 
     # Get the fs for the specified condition
     if isinstance(fs_wanted, str):
@@ -314,11 +314,12 @@ def get_model(model_name, all_models_dir='/home/nuttidalab/Documents/renee/all_D
     return mat_data
 
 
-def get_celltype_label(model_name, condn_phrase='', condn_num='', remove_lowfr=False):
+def get_celltype_label(model_name, condn_phrase='', condn_num='', remove_lowfr=False,
+                       all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'):
     '''
     Get the cell type labels (E or I) for a given model
     '''
-    mat_data = get_model(model_name)
+    mat_data = get_model(model_name, all_models_dir)
 
     exc = mat_data['exc']
     exc_ind = np.where(exc == 1)[0]
@@ -326,7 +327,8 @@ def get_celltype_label(model_name, condn_phrase='', condn_num='', remove_lowfr=F
     inh_ind = np.where(inh == 1)[0]
     
     if remove_lowfr:
-        neuron_rmv_idxs = load_lowfr_idxs(model_name, condn_phrase, condn_num, threshold=2)
+        neuron_rmv_idxs = load_lowfr_idxs(model_name, condn_phrase, condn_num, threshold=2,
+                                          all_models_dir=all_models_dir)
         results = rmv_lowfr_neurons(neuron_rmv_idxs, N=len(exc), spk_df=None, rates_data=None, lfp_data=None, 
                       connectivity_df=None, W=None, exc_ind=exc_ind, inh_ind = inh_ind)
         exc_ind = results['exc_ind']
@@ -338,11 +340,11 @@ def get_celltype_label(model_name, condn_phrase='', condn_num='', remove_lowfr=F
     return exc_ind, inh_ind
 
 
-def get_timescales(model_name):
+def get_timescales(model_name, all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'):
     '''
     Get the timescales for a given model
     '''
-    mat_data = get_model(model_name)
+    mat_data = get_model(model_name, all_models_dir)
     mean_decay = mat_data['mean_decay'][0][0]
     taus_decay_ms = mat_data['taus_decay_ms'][0]
     nan_idx = np.isnan(taus_decay_ms)
@@ -353,11 +355,12 @@ def get_timescales(model_name):
     return mean_decay, taus_decay_ms, auto_N
 
 
-def get_connectivity_df(model_name, condn_phrase, condn_num, remove_lowfr=False):
+def get_connectivity_df(model_name, condn_phrase, condn_num, remove_lowfr=False,
+                        all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'):
     '''
     Get the connectivity data for a given model
     '''
-    mat_data = get_model(model_name)
+    mat_data = get_model(model_name, all_models_dir)
     final_w = get_weights(model_name, condn_phrase, condn_num)
     exc_ind = np.where(mat_data['exc'] == 1)[0]
     
@@ -386,7 +389,8 @@ def get_connectivity_df(model_name, condn_phrase, condn_num, remove_lowfr=False)
     connectivity_df = pd.DataFrame(flattened_rows)
     
     if remove_lowfr:
-        neuron_rmv_idxs = load_lowfr_idxs(model_name, condn_phrase, condn_num, threshold=2)
+        neuron_rmv_idxs = load_lowfr_idxs(model_name, condn_phrase, condn_num, threshold=2,
+                                          all_models_dir=all_models_dir)
         results = rmv_lowfr_neurons(neuron_rmv_idxs, n_neurons, connectivity_df=connectivity_df)
         connectivity_df = results['connectivity_df']
     
@@ -409,7 +413,8 @@ def get_weights(model_name, condn_phrase, condn_num, remove_lowfr=False,
     taus_sig = (1/(1+np.exp(-taus_gaus))*(taus[1] - taus[0])) + taus[0]
     
     if remove_lowfr:
-        neuron_rmv_idxs = load_lowfr_idxs(model_name, condn_phrase, condn_num, threshold=2)
+        neuron_rmv_idxs = load_lowfr_idxs(model_name, condn_phrase, condn_num, threshold=2,
+                                          all_models_dir=all_models_dir)
         results = rmv_lowfr_neurons(neuron_rmv_idxs, len(w), W = final_w)
         final_w = results['W']
         
@@ -432,7 +437,8 @@ def get_weights_init(model_name, condn_phrase, condn_num, remove_lowfr=False,
     taus_sig = (1/(1+np.exp(-taus_gaus))*(taus[1] - taus[0])) + taus[0]
     
     if remove_lowfr:
-        neuron_rmv_idxs = load_lowfr_idxs(model_name, condn_phrase, condn_num, threshold=2)
+        neuron_rmv_idxs = load_lowfr_idxs(model_name, condn_phrase, condn_num, threshold=2,
+                                          all_models_dir=all_models_dir)
         results = rmv_lowfr_neurons(neuron_rmv_idxs, len(w), W = final_w)
         final_w = results['W']
         
@@ -447,7 +453,7 @@ def get_models_by_perf(low_cutoff, high_cutoff, condn_phrase, condn_num='',
     model_perfs = []
     model_names = []
     for i, model_name in enumerate(model_dirs):
-        _, trial_perfs = load_bhv_data(model_name, condn_phrase, condn_num)
+        _, trial_perfs = load_bhv_data(model_name, condn_phrase, condn_num, all_models_dir)
         model_perf = np.mean(trial_perfs)
         if model_perf > low_cutoff and model_perf < high_cutoff:
             model_perfs.append(model_perf)

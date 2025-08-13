@@ -19,7 +19,7 @@ clear; clc
 
 normalize_ipscs = 0;
 lesion_connections = 0; % if not lesioning put 0, else 'ii' etc
-delay = 150; % 150 is the standard "testing" delay duration
+delay = 50; % 150 is the standard "testing" delay duration
 n_trials_per_condn = 250;
 
 
@@ -43,7 +43,8 @@ addpath('/home/nuttidalab/Documents/renee/spikeRNN/spiking/')
 %% directory info
 
 % all_model_path = '/scratch/all_DMS_models/';
-all_model_path = '/home/nuttidalab/Documents/renee/all_DMS_models/';
+% all_model_path = '/home/nuttidalab/Documents/renee/all_DMS_models/';
+all_model_path = '/home/nuttidalab/Documents/renee/jitter_models/models/xor/P_rec_0.2_Taus_4.0_25.0/'
 cd(all_model_path)
 model_list = dir('*.mat');
 
@@ -104,11 +105,12 @@ for n_model = 1:length(model_list)
     model_path = fullfile(all_model_path, [model_name,'.mat']);
     load(model_path)
     model_path = fullfile(all_model_path, [model_name,'.mat']); % rewrite bc was overwritten
-    disp(['mean stable performance ', num2str(mean(stable_perfs))])
+    disp(['mean stable performance ', num2str(mean(all_perfs))])
 
     % make directory for this model if one doesn't exist
     if ~exist(model_name, 'dir')
         mkdir(model_name)
+        
     end
     this_model_dir = fullfile(all_model_path,model_name);
 
