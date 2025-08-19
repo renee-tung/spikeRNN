@@ -39,6 +39,8 @@ from model import generate_target_continuous_mante
 from model import generate_input_stim_go_nogo
 from model import generate_target_continuous_go_nogo
 
+from model import generate_target_LFP_bandpower
+
 from model import construct_tf
 from model import loss_op
 
@@ -81,6 +83,10 @@ parser.add_argument("--decay_taus", required=True,
         nargs='+', type=float,
         help="Synaptic decay time-constants (in time-steps). If only one number is given, then all\
         time-constants set to that value (i.e. not trainable). Otherwise specify two numbers (min, max).")
+parser.add_argument("--target_power", required=True,
+        nargs='+', type=float,
+        help="Target power for the EPSP during maintenance. If only one number is given, then LFP power is set\
+            to increase at this frequency only. Generally, specify two numbers for a band range (min, max).")
 args = parser.parse_args()
 
 # Set up the output dir where the output model will be saved
@@ -99,6 +105,9 @@ if os.path.exists(out_dir) == False:
 N = args.N
 som_N = args.som_N; # number of SST neurons 
 
+# Specify LFP power target
+lfp_power_target = args.target_power
+
 # Define task-specific parameters
 # NOTE: Each time step is 5 ms
 if args.task.lower() == 'go-nogo':
@@ -109,6 +118,7 @@ if args.task.lower() == 'go-nogo':
             'stim_dur': 25, # input stim duration (in steps)
             'DeltaT': 1, # sampling rate
             'taus': args.decay_taus, # decay time-constants (in steps)
+            'lfp_power_target': lfp_power_target, # target power for the LFP
             'task': args.task.lower(), # task name
             }
 elif args.task.lower() == 'xor':
@@ -117,9 +127,11 @@ elif args.task.lower() == 'xor':
             'T': 300, # trial duration (in steps)
             'stim_on': 50, # input stim onset (in steps)
             'stim_dur': 50, # input stim duration (in steps)
-            'delay': 10, # delay b/w the two stimuli (in steps)
+            'delay': 50, # delay b/w the two stimuli (in steps)
             'DeltaT': 1, # sampling rate
+            'fs': 200, # sampling rate (Hz)
             'taus': args.decay_taus, # decay time-constants (in steps)
+            'lfp_power_target': lfp_power_target, # target power for the LFP
             'task': args.task.lower(), # task name
             }
 elif args.task.lower() == 'mante':
@@ -130,6 +142,7 @@ elif args.task.lower() == 'mante':
             'stim_dur': 200, # input stim duration (in steps)
             'DeltaT': 1, # sampling rate
             'taus': args.decay_taus, # decay time-constants (in steps)
+            'lfp_power_target': lfp_power_target, # target power for the LFP
             'task': args.task.lower(), # task name
             }
 
@@ -183,12 +196,12 @@ training_params = {
 Construct the TF graph for training
 '''
 if args.mode.lower() == 'train':
-    input_node, z, x, r, o, w, w_in, m, som_m, w_out, b_out, taus\
+    input_node, z, y, x, r, epsp, o, w, w_in, m, som_m, w_out, b_out, taus\
             = construct_tf(net, settings, training_params)
     print('Constructed the TF graph...')
-
+    
     # Loss function and optimizer
-    loss, training_op = loss_op(o, z, training_params)
+    loss, loss_out, loss_lfp, training_op = loss_op(o, z, epsp, y, training_params, settings)
 
 
 '''
@@ -214,8 +227,9 @@ if args.mode.lower() == 'train':
             # XOR task
             u, label = generate_input_stim_xor(settings)
             target = generate_target_continuous_xor(settings, label)
-            x0, r0, w0, w_in0, taus_gaus0 = \
-                    sess.run([x, r, w, w_in, taus], feed_dict={input_node: u, z: target})
+            lfp_target = generate_target_LFP_bandpower(settings)
+            x0, r0, epsp0, w0, w_in0, taus_gaus0 = \
+                    sess.run([x, r, epsp, w, w_in, taus], feed_dict={input_node: u, z: target, y: lfp_target})
 
         elif args.task.lower() == 'mante':
             # Sensory integration task
@@ -226,6 +240,8 @@ if args.mode.lower() == 'train':
 
         # For storing all the loss vals
         losses = np.zeros((args.n_trials,))
+        losses_out = np.zeros((args.n_trials,))
+        losses_lfp = np.zeros((args.n_trials,))
 
         for tr in range(args.n_trials):
             start_time = time.time()
@@ -244,12 +260,14 @@ if args.mode.lower() == 'train':
             print("Trial " + str(tr) + ': ' + str(label))
 
             # Train using backprop
-            _, t_loss, t_w, t_o, t_w_out, t_x, t_r, t_m, t_som_m, t_w_in, t_b_out, t_taus_gaus = \
-                    sess.run([training_op, loss, w, o, w_out, x, r, m, som_m, w_in, b_out, taus],
-                    feed_dict={input_node: u, z: target})
+            _, t_loss, t_loss_out, t_loss_lfp, t_w, t_o, t_w_out, t_x, t_r, t_epsp, t_m, t_som_m, t_w_in, t_b_out, t_taus_gaus = \
+                    sess.run([training_op, loss, loss_out, loss_lfp, w, o, w_out, x, r, epsp, m, som_m, w_in, b_out, taus],
+                    feed_dict={input_node: u, z: target, y: lfp_target})
 
             print('Loss: ', t_loss)
             losses[tr] = t_loss
+            losses_out[tr] = t_loss_out
+            losses_lfp[tr] = t_loss_lfp
 
             '''
             Evaluate the model and determine if the training termination criteria are met
@@ -299,8 +317,8 @@ if args.mode.lower() == 'train':
                     for ii in range(eval_perf.shape[-1]):
                         eval_u, eval_label = generate_input_stim_xor(settings)
                         eval_target = generate_target_continuous_xor(settings, eval_label)
-                        eval_o, eval_l = sess.run([o, loss], feed_dict = \
-                                {input_node: eval_u, z: eval_target})
+                        eval_o, eval_l, eval_l_out, eval_l_lfp = sess.run([o, loss, loss_out, loss_lfp], feed_dict = \
+                                {input_node: eval_u, z: eval_target, y: lfp_target})
                         eval_losses[0, ii] = eval_l
                         eval_os[ii, :] = np.array(eval_o).flatten()
                         eval_labels.append(eval_label)
@@ -364,6 +382,8 @@ if args.mode.lower() == 'train':
         var['w'] = t_w
         var['x'] = t_x
         var['target'] = target
+        var['lfp_power_target'] = settings['lfp_power_target']
+        var['epsp'] = t_epsp
         var['w_out'] = t_w_out
         var['r'] = t_r
         var['m'] = t_m
@@ -375,6 +395,8 @@ if args.mode.lower() == 'train':
         var['b_out'] = t_b_out
         var['som_N'] = som_N
         var['losses'] = losses
+        var['losses_out'] = losses_out
+        var['losses_lfp'] = losses_lfp
         var['taus'] = settings['taus']
         var['eval_perf_mean'] = eval_perf_mean
         var['eval_loss_mean'] = eval_loss_mean
@@ -385,8 +407,9 @@ if args.mode.lower() == 'train':
         var['activation'] = training_params['activation']
         fname_time = datetime.datetime.now().strftime("%Y_%m_%d_%H%M%S")
         if len(settings['taus']) > 1:
-            fname = 'Task_{}_N_{}_Taus_{}_{}_Act_{}_{}.mat'.format(args.task.lower(), N, settings['taus'][0], 
-                    settings['taus'][1], training_params['activation'], fname_time)
+            fname = 'Task_{}_N_{}_Taus_{}_{}_LFP_{}_{}_Act_{}_{}.mat'.format(args.task.lower(), N, settings['taus'][0], 
+                    settings['taus'][1], settings['lfp_power_target'][0], settings['lfp_power_target'][1], 
+                    training_params['activation'], fname_time)
         elif len(settings['taus']) == 1:
             fname = 'Task_{}_N_{}_Tau_{}_Act_{}_{}.mat'.format(args.task.lower(), N, settings['taus'][0], 
                     training_params['activation'], fname_time)

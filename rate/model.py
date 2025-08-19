@@ -13,6 +13,9 @@ import numpy as np
 import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
 import scipy.io
+import scipy.signal
+import pywt
+import pdb
 
 '''
 CONTINUOUS FIRING-RATE RNN CLASS
@@ -401,6 +404,195 @@ def generate_target_continuous_mante(settings, label):
     return np.squeeze(z)
 
 '''
+Band-specific LFP target signal
+'''
+def generate_target_LFP_bandpower(settings):
+    """
+    Generate a continuous target LFP bandpower signal (y) 
+    for the XOR task
+
+    INPUT
+        settings: dict containing the following keys
+            T: duration of a single trial (in steps)
+            stim_on: stimulus starting time (in steps)
+            stim_dur: stimulus duration (in steps)
+            delay: delay b/w two stimuli (in steps)
+            taus: time-constants (in steps)
+            DeltaT: sampling rate
+            lfp_power_target: target power for the LFP
+    OUTPUT
+        y: 1xT target signal
+    """
+    T = settings['T']
+    stim_on = settings['stim_on']
+    stim_dur = settings['stim_dur']
+    delay = settings['delay']
+
+    y = np.zeros((1, T))
+    y[0, stim_on+stim_dur:stim_on+stim_dur+delay] = 1 # maintenance period
+
+    return np.squeeze(y)
+
+def calculate_LFP_bandpower(settings, epsp):
+    """
+    TF1-graph-friendly CWT bandpower using Morlet wavelets implemented via conv1d.
+    Returns [T] tensor of z-scored bandpower.
+    """
+    # ---- settings ----
+    T         = settings['T']
+    fs        = settings['fs']           # Hz
+    dt        = 1.0 / fs
+    fmin, fmax = 4.0, 100.0
+    num_freqs = 40
+    band_lo, band_hi = settings['lfp_power_target']  # e.g., [30, 80]
+    stim_on   = settings['stim_on']
+
+    # ---- epsp -> shape [1, T, 1] ----
+    # epsp is length T, each element shape [1,1], so squeeze & stack:
+    # pdb.set_trace()
+    epsp_vec = tf.squeeze(tf.stack(epsp, axis=0))          # [T] or [T,] float32
+    epsp_sig = tf.reshape(epsp_vec, [1, T, 1])                   # [batch=1, time=T, ch=1]
+
+    # ---- frequencies & scales ----
+    freqs = tf.exp(tf.linspace(tf.log(fmin), tf.log(fmax), num_freqs))  # [num_freqs]
+    # Morlet central frequency for PyWavelets 'morl' ~ 0.8125, but we can treat as hyperparam.
+    # Match PyWavelets by using that same fc:
+    fc = tf.constant(0.8125, dtype=tf.float32)
+    scales = fc / (freqs * dt)                                   # [num_freqs]
+
+    # ---- build Morlet kernels (real & imag) ----
+    # Window length: K cycles of the center frequency at each scale.
+    # K=6 is a common choice. Use time support symmetric around 0.
+    K = 6.0
+    # For a Morlet at frequency f, approximate sigma_t ~ K/(2*pi*f)
+    # Use a *shared* max half-width across freqs for "same" padding kernels.
+    # Choose a kernel that covers the lowest freq sufficiently:
+    f_low = fmin
+    sigma_t_low = K / (2.0 * np.pi * f_low)
+    half_width_sec = 4.0 * sigma_t_low   # ~±4 sigma
+    kernel_len = tf.cast(tf.round(2.0 * half_width_sec * fs) + 1, tf.int32)  # odd length
+    kernel_len = tf.maximum(kernel_len, 31)  # avoid too-short kernels
+    # time vector centered at 0
+    t_idx = tf.range(kernel_len, dtype=tf.float32) - tf.cast(kernel_len - 1, tf.float32)/2.0
+    t_sec = t_idx / fs  # [L]
+
+    # Morlet wavelet (complex): psi(t; f) = A * exp(-t^2/(2*sigma^2)) * exp(2j*pi*f*t)
+    # We normalize each kernel to unit L2 energy so power is comparable across freqs.
+    # Build per-frequency kernels (broadcast over [L, num_freqs]).
+    two_pi = tf.constant(2.0*np.pi, tf.float32)
+    # sigma_t per frequency (vector) — wider at low freq:
+    sigma_t = K / (two_pi * freqs)  # [num_freqs]
+    # Gaussian envelope
+    env = tf.exp(-0.5 * tf.square(tf.expand_dims(t_sec,1) / tf.expand_dims(sigma_t,0)))  # [L, F]
+    # carrier
+    phase = two_pi * tf.expand_dims(t_sec,1) * tf.expand_dims(freqs,0)                   # [L, F]
+    cos_part = env * tf.cos(phase)                                                       # [L, F]
+    sin_part = env * tf.sin(phase)                                                       # [L, F]
+
+    # L2 normalize each frequency kernel
+    eps = 1e-8
+    norm = tf.sqrt(tf.reduce_sum(tf.square(cos_part) + tf.square(sin_part), axis=0, keepdims=True) + eps)  # [1,F]
+    cos_part = cos_part / norm
+    sin_part = sin_part / norm
+
+    # conv1d wants [filter_width, in_channels, out_channels]
+    # in_channels=1; out_channels=F (one filter per frequency)
+    cos_filt = tf.expand_dims(cos_part, 1)  # [L,1,F]
+    sin_filt = tf.expand_dims(sin_part, 1)  # [L,1,F]
+
+    # ---- convolution: "SAME" to keep T ----
+    real_coeff = tf.nn.conv1d(epsp_sig, cos_filt, stride=1, padding='SAME')  # [1,T,F]
+    imag_coeff = tf.nn.conv1d(epsp_sig, sin_filt, stride=1, padding='SAME')  # [1,T,F]
+
+    power = tf.square(real_coeff) + tf.square(imag_coeff)  # [1,T,F]
+    power = tf.squeeze(power, axis=0)                      # [T,F]
+
+    # ---- select target band & average across freqs in band ----
+    band_mask = tf.logical_and(freqs >= band_lo, freqs <= band_hi)         # [F]
+    band_mask_f = tf.cast(band_mask, tf.float32)
+    # Avoid empty band:
+    denom = tf.maximum(tf.reduce_sum(band_mask_f), 1.0)
+    band_power = tf.tensordot(power, band_mask_f/denom, axes=[[1],[0]])    # [T]
+
+    # ---- baseline z-score (pure TF) ----
+    # baseline: e.g., indices 25 : stim_on (exclusive)
+    start = tf.constant(25, dtype=tf.int32)
+    stop  = tf.cast(stim_on, tf.int32)
+    base_slice = band_power[start:stop]                                     # [stop-start]
+    base_mean  = tf.reduce_mean(base_slice)
+    base_std   = tf.math.reduce_std(base_slice) + 1e-8
+    lfp_power_z = (band_power - base_mean) / base_std                       # [T]
+
+    return lfp_power_z  # shape [T]
+
+# def calculate_LFP_bandpower(settings, epsp):
+#     """
+#     Calculate the band-specific LFP power from the EPSP signal
+
+#     INPUT
+#         settings: dict containing the following keys
+#             T: duration of a single trial (in steps)
+#             stim_on: stimulus starting time (in steps)
+#             stim_dur: stimulus duration (in steps)
+#             delay: delay b/w two stimuli (in steps)
+#             taus: time-constants (in steps)
+#             DeltaT: sampling rate
+#             fs: sampling rate (Hz)
+#             lfp_power_target: target power for the LFP (min, max)
+#         epsp: EPSP signal from the RNN model
+#     OUTPUT
+#         lfp_power: 1xT LFP power signal
+#     """
+#     T = settings['T']
+#     fs = settings['fs']  # sampling frequency (Hz)
+#     dt = 1 / fs  # time step (s)
+#     fmin, fmax = 4, 100  # frequency range for the CWT
+#     num_freqs = 40
+#     band_lo, band_hi = settings['lfp_power_target']  # target band for LFP power
+    
+#     # nperseg = int(0.01 * fs)  # 10 ms segment length (delay is 50ms)
+#     # f, t, s = scipy.signal.spectrogram(epsp, fs=fs, nperseg=nperseg, noverlap=nperseg//2, 
+#     #                                    nfft=nperseg*20, scaling='density')
+    
+#     # fmin, fmax = 4, 100  # frequency range for the CWT
+#     # num_freqs = 40
+#     # freqs = np.logspace(fmin, fmax, num=num_freqs)  # logarithmically spaced frequencies
+#     # w = 6 # number of cycles
+#     # widths = (fs * w) / (2 * freqs * np.pi)
+#     # cwt_mtx = scipy.signal.cwt(epsp, scipy.signal.morlet2, widths, w=w)
+#     # power = np.abs(cwt_mtx)**2  # dimensions [frequencies x time]
+    
+    
+    
+#     freqs = np.logspace(np.log10(fmin), np.log10(fmax), num=num_freqs) # log-spaced freqs
+    
+#     if tf.executing_eagerly():
+#         epsp_np = epsp.numpy()
+#     else:
+#         raise RuntimeError("epsp is symbolic — can't convert to NumPy in graph mode.")
+#     fc = pywt.central_frequency('morl')
+#     scales = fc / (freqs * dt)
+
+#     # PyWavelets CWT
+#     coeffs, freqs_out = pywt.cwt(epsp_np, scales, 'morl', sampling_period=dt)
+#     power = np.abs(coeffs)**2  # dimensions [frequencies x time]
+    
+#     # calculate power for band of interest
+#     idx = np.where((freqs_out >= band_lo) & (freqs_out <= band_hi))[0] # get freqs in band
+#     band_power = np.mean(power[idx, :], axis=0)  # average power across frequencies in the band
+
+#     # normalize the band power by the baseline period
+#     baseline_period = slice(10, settings['stim_on'])  # baseline period before stimulus onset
+#     baseline_mean = np.mean(band_power[baseline_period])
+#     baseline_std = np.std(band_power[baseline_period])
+#     lfp_power = (band_power - baseline_mean) / baseline_std  # z-score
+#     lfp_power = tf.convert_to_tensor(lfp_power, dtype=tf.float32)
+    
+#     pdb.set_trace()
+
+#     return tf.squeeze(lfp_power)
+
+'''
 CONSTRUCT TF GRAPH FOR TRAINING
 '''
 def construct_tf(fr_rnn, settings, training_params):
@@ -432,7 +624,8 @@ def construct_tf(fr_rnn, settings, training_params):
     learning_rate = training_params['learning_rate']
 
     # Excitatory units
-    exc_idx_tf = tf.constant(np.where(fr_rnn.exc == True)[0], name='exc_idx')
+    exc_idx_tf = tf.constant(np.where(fr_rnn.exc == True)[0], name='exc_idx', dtype=tf.int32)
+    exc_idx = np.where(fr_rnn.exc == True)[0]
 
     # Inhibitory units
     inh_idx_tf = tf.constant(np.where(fr_rnn.inh == True)[0], name='inh_idx')
@@ -453,6 +646,7 @@ def construct_tf(fr_rnn, settings, training_params):
 
     # Target node
     z = tf.placeholder(tf.float32, [T,], name='target')
+    y = tf.placeholder(tf.float32, [T,], name='lfp_target')
 
     # Initialize the decay synaptic time-constants (gaussian random).
     # This vector will go through the sigmoid transfer function.
@@ -464,9 +658,10 @@ def construct_tf(fr_rnn, settings, training_params):
             name='taus_gaus', trainable=False)
         print('Synaptic decay time-constants will not get updated!')
 
-    # Synaptic currents and firing-rates
+    # Synaptic currents, firing-rates, and EPSP
     x = [] # synaptic currents
     r = [] # firing-rates
+    epsp = [] # EPSP
     x.append(tf.random_normal([fr_rnn.N, 1], dtype=tf.float32)/100)
 
     # Transfer function options
@@ -476,6 +671,9 @@ def construct_tf(fr_rnn, settings, training_params):
         r.append(tf.clip_by_value(tf.nn.relu(x[0]), 0, 20))
     elif training_params['activation'] == 'softplus':
         r.append(tf.clip_by_value(tf.nn.softplus(x[0]), 0, 20))
+        
+    # Initialize EPSP
+    epsp.append(tf.abs(tf.random.normal([1], dtype=tf.float32)/100))
 
     # Initialize recurrent weight matrix, mask, input & output weight matrices
     w = tf.get_variable('w', initializer = fr_rnn.W, dtype=tf.float32, trainable=True)
@@ -518,37 +716,67 @@ def construct_tf(fr_rnn, settings, training_params):
         elif training_params['activation'] == 'softplus':
             r.append(tf.clip_by_value(tf.nn.softplus(next_x), 0, 20))
 
+        r_exc = tf.gather(r[t-1], exc_idx_tf)
+        ww_exc = tf.gather(ww, exc_idx_tf, axis=1)
+        next_epsp = tf.multiply((1 - DeltaT/taus_sig), x[t-1]) + \
+                    tf.multiply((DeltaT/taus_sig), 
+                                ((tf.matmul(ww_exc, r_exc)))) 
+        next_epsp = tf.reduce_mean(next_epsp, axis=0, keepdims=False)  # average over excitatory neurons
+        
+        # next_epsp = tf.multiply((1 - DeltaT/taus_sig), 
+        #                         tf.expand_dims(x[t-1], 1)) + \
+        #             tf.multiply((DeltaT/taus_sig), 
+        #                         ((tf.multiply(ww, tf.expand_dims(r[t-1], 1))))) # [N x 1]
+        # next_epsp = tf.reduce_mean(next_epsp, axis=0, keepdims=True)  # average over all neurons
+        
+        epsp.append(next_epsp)
+
         next_o = tf.matmul(w_out, r[t]) + b_out
         o.append(next_o)
 
-    return stim, z, x, r, o, w, w_in, m, som_m, w_out, b_out, taus_gaus
+    return stim, z, y, x, r, epsp, o, w, w_in, m, som_m, w_out, b_out, taus_gaus
 
 '''
 DEFINE LOSS AND OPTIMIZER
 '''
-def loss_op(o, z, training_params):
+def loss_op(o, z, epsp, y, training_params, settings):
     """
-    Method to define loss and optimizer for ONLY ONE target signal
+    Method to define loss and optimizer for target signal (output and epsp)
     INPUT
         o: list of output values
         z: target values
         training_params: dictionary containing training parameters
             learning_rate: learning rate
+        epsp: list of EPSP values
+        y: target LFP bandpower values
 
     OUTPUT
         loss: loss function
         training_op: optimizer
     """
+    # get epsp band power
+    lfp_power = calculate_LFP_bandpower(settings, epsp)
+    
     # Loss function
     loss = tf.zeros(1)
     loss_fn = training_params['loss_fn']
-    for i in range(0, len(o)):
-        if loss_fn.lower() == 'l1':
-            loss += tf.norm(o[i] - z[i])
-        elif loss_fn.lower() == 'l2':
-            loss += tf.square(o[i] - z[i])
-    if loss_fn.lower() == 'l2':
-        loss = tf.sqrt(loss)
+    # for i in range(0, len(o)):
+    #     if loss_fn.lower() == 'l1':
+    #         loss += tf.norm(o[i] - z[i])
+    #     elif loss_fn.lower() == 'l2':
+    #         loss += tf.square(o[i] - z[i]) + tf.norm(lfp_power[i] - y[i])
+    # if loss_fn.lower() == 'l2':
+    #     loss = tf.sqrt(loss)
+    o_full = [tf.zeros_like(o[0])] + o  # length T
+    o_vec  = tf.squeeze(tf.stack(o_full, axis=0))  # [T]
+    if loss_fn == 'l1':
+        loss_out = tf.reduce_sum(tf.abs(o_vec - z))
+        loss_lfp = tf.reduce_sum(tf.square(lfp_power - y))  # L2 on bandpower target
+        loss = loss_out + loss_lfp
+    else:  # 'l2'
+        loss_out = tf.reduce_sum(tf.square(o_vec - z))
+        loss_lfp = tf.reduce_sum(tf.norm(lfp_power - y)) # norm for bandpower
+        loss = tf.sqrt(1.5*loss_out + loss_lfp + 1e-12)
 
     # Optimizer function
     with tf.name_scope('ADAM'):
@@ -556,13 +784,13 @@ def loss_op(o, z, training_params):
 
     training_op = optimizer.minimize(loss) 
 
-    return loss, training_op
+    return loss, loss_out, loss_lfp, training_op
 
 '''
 EVALUATE THE TRAINED MODEL
 NOTE: NEED TO BE UPDATED!!
 '''
-def eval_tf(model_dir, settings, u, lesion='', calc_epsp=False):
+def eval_tf(model_dir, settings, u, lesion='', calc_epsp=True):
     """
     Method to evaluate a trained TF graph
     INPUT
@@ -597,7 +825,7 @@ def eval_tf(model_dir, settings, u, lesion='', calc_epsp=False):
     epsp = np.zeros((N, T)) # EPSP
     x[:, 0] = np.random.randn(N, )/100
     r[:, 0] = 1/(1 + np.exp(-x[:, 0]))
-    epsp[:, 0] = np.abs(np.random.randn(N, )/100)
+    epsp[0] = np.abs(np.random.randn(1)/100)
     # r[:, 0] = np.minimum(np.maximum(x[:, 0], 0), 1) #clipped relu
     # r[:, 0] = np.clip(np.minimum(np.maximum(x[:, 0], 0), 1), None, 10) #clipped relu
     # r[:, 0] = np.clip(np.log(np.exp(x[:, 0])+1), None, 10) # softplus
@@ -619,6 +847,7 @@ def eval_tf(model_dir, settings, u, lesion='', calc_epsp=False):
     # Identify excitatory/inhibitory neurons
     exc = var['exc']
     exc_ind = np.where(exc == 1)[0]
+    exc_idx_tf = tf.constant(exc_ind, name='exc_idx', dtype=tf.int32)
     inh = var['inh']
     inh_ind = np.where(inh == 1)[0]
     som_inh_ind = inh_ind[:som_N]
@@ -653,12 +882,19 @@ def eval_tf(model_dir, settings, u, lesion='', calc_epsp=False):
                 np.random.randn(N, 1)/10
         
         if calc_epsp == True:
-            next_epsp = np.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[:, t-1], 1)) + \
+            next_epsp = np.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[t-1], 1)) + \
                     np.multiply((DeltaT/taus_sig), ((np.matmul(ww[:,exc_ind], np.expand_dims(r[exc_ind, t-1], 1))))) 
-            epsp[:, t] = np.squeeze(next_epsp)
+            next_epsp = tf.reduce_mean(next_epsp, axis=0, keepdims=True)  # average over all neurons
+            
+            # next_epsp = tf.multiply((1 - DeltaT/taus_sig), tf.expand_dims(x[:, t-1], 1)) + \
+            #         tf.multiply((DeltaT/taus_sig[:,:]), 
+            #                     ((tf.matmul(ww, tf.expand_dims(r[:, t-1], 1)))))
+            # next_epsp = tf.reduce_mean(next_epsp, axis=0, keepdims=True)  # average over excitatory neurons
             
         x[:, t] = np.squeeze(next_x)
         r[:, t] = 1/(1 + np.exp(-x[:, t]))
+        epsp[:, t] = np.squeeze(next_epsp)
+        
         
         # r[:, t] = np.minimum(np.maximum(x[:, t], 0), 1)
         # r[:, t] = np.clip(np.minimum(np.maximum(x[:, t], 0), 1), None, 10)
