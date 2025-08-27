@@ -428,8 +428,10 @@ def generate_target_LFP_bandpower(settings):
     stim_dur = settings['stim_dur']
     delay = settings['delay']
 
-    y = np.zeros((1, T))
-    y[0, stim_on+stim_dur:stim_on+stim_dur+delay] = 1 # maintenance period
+    # y = np.zeros((1, T))
+    # y[0, stim_on+stim_dur:stim_on+stim_dur+delay] = 1 # maintenance period
+    
+    y = np.ones((1,T)) # entire trial duration
 
     return np.squeeze(y)
 
@@ -515,11 +517,11 @@ def calculate_LFP_bandpower(settings, epsp):
     band_power = tf.tensordot(power, band_mask_f/denom, axes=[[1],[0]])    # [T]
 
     # ---- baseline z-score (pure TF) ----
-    # baseline: e.g., indices 25 : stim_on (exclusive)
-    start = tf.constant(25, dtype=tf.int32)
+    # baseline: e.g., indices 10 : stim_on (exclusive)
+    start = tf.constant(10, dtype=tf.int32)
     stop  = tf.cast(stim_on, tf.int32)
     base_slice = band_power[start:stop]                                     # [stop-start]
-    base_mean  = tf.reduce_mean(base_slice)
+    base_mean  = tf.reduce_mean(base_slice) 
     base_std   = tf.math.reduce_std(base_slice) + 1e-8
     lfp_power_z = (band_power - base_mean) / base_std                       # [T]
 
@@ -775,8 +777,10 @@ def loss_op(o, z, epsp, y, training_params, settings):
         loss = loss_out + loss_lfp
     else:  # 'l2'
         loss_out = tf.reduce_sum(tf.square(o_vec - z))
-        loss_lfp = tf.reduce_sum(tf.norm(lfp_power - y)) # norm for bandpower
-        loss = tf.sqrt(1.5*loss_out + loss_lfp + 1e-12)
+        # loss_lfp = tf.reduce_sum(tf.norm(lfp_power - y)) # norm for bandpower
+        loss_lfp = tf.reduce_sum(tf.norm(lfp_power - y))
+        # loss = tf.sqrt(1.5*loss_out + loss_lfp + 1e-12)
+        loss = tf.sqrt(loss_out + loss_lfp + 1e-12)
 
     # Optimizer function
     with tf.name_scope('ADAM'):
@@ -822,7 +826,7 @@ def eval_tf(model_dir, settings, u, lesion='', calc_epsp=True):
     # Synaptic currents and firing-rates; + EPSP
     x = np.zeros((N, T)) # synaptic currents
     r = np.zeros((N, T)) # firing-rates
-    epsp = np.zeros((N, T)) # EPSP
+    epsp = np.zeros((T)) # EPSP
     x[:, 0] = np.random.randn(N, )/100
     r[:, 0] = 1/(1 + np.exp(-x[:, 0]))
     epsp[0] = np.abs(np.random.randn(1)/100)
@@ -882,10 +886,10 @@ def eval_tf(model_dir, settings, u, lesion='', calc_epsp=True):
                 np.random.randn(N, 1)/10
         
         if calc_epsp == True:
-            next_epsp = np.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[t-1], 1)) + \
+            next_epsp = np.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[:,t-1], 1)) + \
                     np.multiply((DeltaT/taus_sig), ((np.matmul(ww[:,exc_ind], np.expand_dims(r[exc_ind, t-1], 1))))) 
-            next_epsp = tf.reduce_mean(next_epsp, axis=0, keepdims=True)  # average over all neurons
-            
+            next_epsp = np.mean(next_epsp)  # average over all neurons
+            epsp[t] = next_epsp
             # next_epsp = tf.multiply((1 - DeltaT/taus_sig), tf.expand_dims(x[:, t-1], 1)) + \
             #         tf.multiply((DeltaT/taus_sig[:,:]), 
             #                     ((tf.matmul(ww, tf.expand_dims(r[:, t-1], 1)))))
@@ -893,9 +897,9 @@ def eval_tf(model_dir, settings, u, lesion='', calc_epsp=True):
             
         x[:, t] = np.squeeze(next_x)
         r[:, t] = 1/(1 + np.exp(-x[:, t]))
-        epsp[:, t] = np.squeeze(next_epsp)
         
-        
+
+
         # r[:, t] = np.minimum(np.maximum(x[:, t], 0), 1)
         # r[:, t] = np.clip(np.minimum(np.maximum(x[:, t], 0), 1), None, 10)
         # r[:, t] = np.clip(np.log(np.exp(x[:, t])+1), None, 10) # softplus

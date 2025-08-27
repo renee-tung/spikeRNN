@@ -29,7 +29,7 @@ clear; clc;
 % model_dir = '/home/nuttidalab/Documents/spikeRNN/models/xor/P_rec_0.2_Taus_4.0_25.0'; 
 model_dir = '/home/nuttidalab/Documents/renee/lfp_models/models/xor/P_rec_0.2_Taus_4.0_25.0';
 
-mat_files = dir(fullfile(model_dir, '*8_25*.mat'));
+mat_files = dir(fullfile(model_dir, '*8_22*.mat'));
 
 % Whether to use the initial random connectivity weights
 % This should be set to false unless you want to compare
@@ -62,7 +62,6 @@ for i = 1:length(mat_files)
   % Load the model
   load(curr_full);
 
-  figure;
   % Skip if the file was run before
   if exist('opt_scaling_factor')
     clearvars -except model_dir mat_files n_trials scaling_factors use_initial_weights
@@ -103,20 +102,9 @@ for i = 1:length(mat_files)
         end
       end
       all_perfs(k) = mean(perfs);
-    
-    % subplot(3, 4, k); hold on;
-    %   plot(outs(trials == 1,:)', 'Color', [1, 0, 0, 0.5]);
-    %   plot(outs(trials == -1,:)', 'Color', [0, 0, 1, 0.5]);
-    %   title(['scaling factor ', num2str(scaling_factors(k))])
-    % 
     end
     [v, ind] = max(all_perfs);
     [v, scaling_factors(ind)]
-
-
-    % sgtitle(['task load 3, model with 400 neurons, optimal scaling factor ', ...
-    %     'old: ', num2str(opt_scaling_factor), ', new: ', num2str(scaling_factors(ind))])
-
 
     % Save the optimal scaling factor
     opt_scaling_factor = scaling_factors(ind);
@@ -254,18 +242,9 @@ for i = 1:length(mat_files)
       end % parfor end
       all_perfs(k) = mean(perfs);
 
-      % subplot(3, 4, k); hold on;
-      % plot(outs(trials == 1,:)', 'Color', [1, 0, 0, 0.5]);
-      % plot(outs(trials == -1,:)', 'Color', [0, 0, 1, 0.5]);
-      % title(['scaling factor ', num2str(scaling_factors(k))])
-    
-    end
+    end % scaling end
     [v, ind] = max(all_perfs);
     [v, scaling_factors(ind)]
-
-
-    % sgtitle([curr_fname, ', perf ', num2str(v), ', optimal scaling factor ', ...
-    %     'old: ', num2str(opt_scaling_factor), ', new: ', num2str(scaling_factors(ind))])
 
     % Save the optimal scaling factor
     opt_scaling_factor = scaling_factors(ind);
