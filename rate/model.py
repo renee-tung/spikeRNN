@@ -428,10 +428,10 @@ def generate_target_LFP_bandpower(settings):
     stim_dur = settings['stim_dur']
     delay = settings['delay']
 
-    # y = np.zeros((1, T))
-    # y[0, stim_on+stim_dur:stim_on+stim_dur+delay] = 1 # maintenance period
+    y = np.zeros((1, T))
+    y[0, stim_on+stim_dur:stim_on+stim_dur+delay] = 1 # maintenance period
     
-    y = np.ones((1,T)) # entire trial duration
+    # y = np.ones((1,T)) # entire trial duration
 
     return np.squeeze(y)
 
@@ -776,11 +776,11 @@ def loss_op(o, z, epsp, y, training_params, settings):
         loss_lfp = tf.reduce_sum(tf.square(lfp_power - y))  # L2 on bandpower target
         loss = loss_out + loss_lfp
     else:  # 'l2'
-        loss_out = tf.reduce_sum(tf.square(o_vec - z))
-        # loss_lfp = tf.reduce_sum(tf.norm(lfp_power - y)) # norm for bandpower
-        loss_lfp = tf.reduce_sum(tf.norm(lfp_power - y))
-        # loss = tf.sqrt(1.5*loss_out + loss_lfp + 1e-12)
-        loss = tf.sqrt(loss_out + loss_lfp + 1e-12)
+        # loss_out = tf.reduce_sum(tf.square(o_vec - z))
+        loss_lfp = tf.reduce_sum(tf.norm(lfp_power - y)) # norm for bandpower
+        # loss_lfp = tf.reduce_sum(tf.norm(lfp_power - y))
+        loss = tf.sqrt(1.5*loss_out + loss_lfp + 1e-12)
+        # loss = tf.sqrt(loss_out + loss_lfp + 1e-12)
 
     # Optimizer function
     with tf.name_scope('ADAM'):
