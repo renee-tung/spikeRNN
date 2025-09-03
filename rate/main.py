@@ -118,8 +118,8 @@ if args.task.lower() == 'go-nogo':
 elif args.task.lower() == 'xor':
     # XOR task 
     settings = {
-            'T': 500, # trial duration (in steps)
-            'stim_on': 200, # input stim onset (in steps)
+            'T': 300, # trial duration (in steps)
+            'stim_on': 50, # input stim onset (in steps)
             'stim_dur': 50, # input stim duration (in steps)
             # 'delay': 15, # delay b/w the two stimuli (in steps)
             'delay': 50, 
