@@ -87,6 +87,10 @@ parser.add_argument("--target_power", required=True,
         nargs='+', type=float,
         help="Target power for the EPSP during maintenance. If only one number is given, then LFP power is set\
             to increase at this frequency only. Generally, specify two numbers for a band range (min, max).")
+parser.add_argument("--jitter_onset", required=False,
+        type=int, default=0, help="Jitter stimulus onset by up to this many time-steps")
+parser.add_argument("--jitter_delay", required=False,
+        type=int, default=0, help="Jitter maintenance period by up to this many time-steps")
 args = parser.parse_args()
 
 # Set up the output dir where the output model will be saved
@@ -251,8 +255,21 @@ if args.mode.lower() == 'train':
                 u, label = generate_input_stim_go_nogo(settings)
                 target = generate_target_continuous_go_nogo(settings, label)
             elif args.task.lower() == 'xor':
-                u, label = generate_input_stim_xor(settings)
-                target = generate_target_continuous_xor(settings, label)
+                # u, label = generate_input_stim_xor(settings)
+                # target = generate_target_continuous_xor(settings, label)
+                
+                # add time jitter to stimulus onset and delay period
+                if args.jitter_onset > 0 or args.jitter_delay > 0:
+                    settings_jitter = settings.copy()
+                    settings_jitter['stim_on'] = settings['stim_on'] + np.random.randint(-args.jitter_onset, args.jitter_onset+1)
+                    if args.jitter_delay > 0:
+                        settings_jitter['delay'] = settings['delay'] + np.random.randint(-args.jitter_delay, args.jitter_delay+1)
+                    u, label = generate_input_stim_xor(settings_jitter)
+                    target = generate_target_continuous_xor(settings_jitter, label)
+                else:
+                    u, label = generate_input_stim_xor(settings)
+                    target = generate_target_continuous_xor(settings, label)
+                    
             elif args.task.lower() == 'mante':
                 u, label = generate_input_stim_mante(settings)
                 target = generate_target_continuous_mante(settings, label)
