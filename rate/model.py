@@ -428,10 +428,13 @@ def generate_target_LFP_bandpower(settings):
     stim_dur = settings['stim_dur']
     delay = settings['delay']
 
-    y = np.zeros((1, T))
-    y[0, stim_on+stim_dur:stim_on+stim_dur+delay] = 1 # maintenance period
-    
-    # y = np.ones((1,T)) # entire trial duration
+    if settings['power_target_period'] == 'full':
+        y = np.ones((1, T)) # entire trial duration
+    elif settings['power_target_period'] == 'delay':
+        y = np.zeros((1, T))
+        y[0, stim_on+stim_dur:stim_on+stim_dur+delay] = 1 # maintenance period
+    else:
+        raise ValueError("Invalid power_target_period. Choose either 'full' or 'delay'.")
 
     return np.squeeze(y)
 
@@ -776,11 +779,15 @@ def loss_op(o, z, epsp, y, training_params, settings):
         loss_lfp = tf.reduce_sum(tf.square(lfp_power - y))  # L2 on bandpower target
         loss = loss_out + loss_lfp
     else:  # 'l2'
-        # loss_out = tf.reduce_sum(tf.square(o_vec - z))
+        loss_out = tf.reduce_sum(tf.square(o_vec - z))
         loss_lfp = tf.reduce_sum(tf.norm(lfp_power - y)) # norm for bandpower
-        # loss_lfp = tf.reduce_sum(tf.norm(lfp_power - y))
+        # loss_lfp = tf.reduce_sum(tf.square(lfp_power - y))
         loss = tf.sqrt(1.5*loss_out + loss_lfp + 1e-12)
         # loss = tf.sqrt(loss_out + loss_lfp + 1e-12)
+        
+        # loss_out = tf.reduce_sum(tf.square(o_vec - z))
+        # loss_lfp = tf.reduce_sum(tf.square(lfp_power - y))
+        # loss = tf.sqrt(1.5*loss_out + loss_lfp + 1e-12)
 
     # Optimizer function
     with tf.name_scope('ADAM'):
@@ -794,7 +801,7 @@ def loss_op(o, z, epsp, y, training_params, settings):
 EVALUATE THE TRAINED MODEL
 NOTE: NEED TO BE UPDATED!!
 '''
-def eval_tf(model_dir, settings, u, lesion='', calc_epsp=True):
+def eval_tf(model_dir, settings, u, lesion='', lesion_perc=0.5, calc_epsp=True):
     """
     Method to evaluate a trained TF graph
     INPUT
@@ -860,14 +867,14 @@ def eval_tf(model_dir, settings, u, lesion='', calc_epsp=True):
     # lesioning
     if len(lesion) != 0:
         lesion_mask = np.ones_like(w)
-        if lesion == 'ii':
-            lesion_mask[np.ix_(inh_ind, inh_ind)] = 0.5
-        elif lesion == 'ei':
-            lesion_mask[np.ix_(exc_ind, inh_ind)] = 0.5
-        elif lesion == 'ie':
-            lesion_mask[np.ix_(inh_ind, exc_ind)] = 0.5
-        elif lesion == 'ee':
-            lesion_mask[np.ix_(exc_ind, exc_ind)] = 0.5
+        if lesion == 'ii': # Inh -> Inh
+            lesion_mask[np.ix_(inh_ind, inh_ind)] = lesion_perc
+        elif lesion == 'ei': # Inh -> Exc
+            lesion_mask[np.ix_(exc_ind, inh_ind)] = lesion_perc
+        elif lesion == 'ie':  # Exc -> Inh
+            lesion_mask[np.ix_(inh_ind, exc_ind)] = lesion_perc 
+        elif lesion == 'ee': # Exc -> Exc
+            lesion_mask[np.ix_(exc_ind, exc_ind)] = lesion_perc
         w = np.multiply(w, lesion_mask)
 
     for t in range(1, T):

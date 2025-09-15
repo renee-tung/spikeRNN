@@ -87,6 +87,8 @@ parser.add_argument("--target_power", required=True,
         nargs='+', type=float,
         help="Target power for the EPSP during maintenance. If only one number is given, then LFP power is set\
             to increase at this frequency only. Generally, specify two numbers for a band range (min, max).")
+parser.add_argument("--power_period", required=False,
+        type=str, default='delay', help="Period during which to compute LFP power (either 'delay' or 'full')")
 parser.add_argument("--jitter_onset", required=False,
         type=int, default=0, help="Jitter stimulus onset by up to this many time-steps")
 parser.add_argument("--jitter_delay", required=False,
@@ -111,6 +113,7 @@ som_N = args.som_N; # number of SST neurons
 
 # Specify LFP power target
 lfp_power_target = args.target_power
+power_target_period = args.power_period.lower()
 
 # Define task-specific parameters
 # NOTE: Each time step is 5 ms
@@ -123,6 +126,7 @@ if args.task.lower() == 'go-nogo':
             'DeltaT': 1, # sampling rate
             'taus': args.decay_taus, # decay time-constants (in steps)
             'lfp_power_target': lfp_power_target, # target power for the LFP
+            'power_target_period': power_target_period, # period during which to compute LFP power
             'task': args.task.lower(), # task name
             }
 elif args.task.lower() == 'xor':
@@ -136,6 +140,7 @@ elif args.task.lower() == 'xor':
             'fs': 200, # sampling rate (Hz)
             'taus': args.decay_taus, # decay time-constants (in steps)
             'lfp_power_target': lfp_power_target, # target power for the LFP
+            'power_target_period': power_target_period, # period during which to compute LFP power
             'task': args.task.lower(), # task name
             }
 elif args.task.lower() == 'mante':
@@ -147,6 +152,7 @@ elif args.task.lower() == 'mante':
             'DeltaT': 1, # sampling rate
             'taus': args.decay_taus, # decay time-constants (in steps)
             'lfp_power_target': lfp_power_target, # target power for the LFP
+            'power_target_period': power_target_period, # period during which to compute LFP power
             'task': args.task.lower(), # task name
             }
 
@@ -184,7 +190,18 @@ print('Intialized the network...')
 '''
 Define the training parameters (learning rate, training termination criteria, etc...)
 '''
-training_params = {
+# training_params = {
+#         'learning_rate': 0.01, # learning rate
+#         'loss_threshold': 7, # loss threshold (when to stop training)
+#         'eval_freq': 100, # how often to evaluate task perf
+#         'eval_tr': 100, # number of trials for eval
+#         'eval_amp_threh': 0.7, # amplitude threshold during response window
+#         'activation': args.act.lower(), # activation function
+#         'loss_fn': args.loss_fn.lower(), # loss function ('L1' or 'L2')
+#         'P_rec': 0.20
+#         }
+
+training_params = { # increased loss threshold for LFP models
         'learning_rate': 0.01, # learning rate
         'loss_threshold': 7, # loss threshold (when to stop training)
         'eval_freq': 100, # how often to evaluate task perf
@@ -400,6 +417,7 @@ if args.mode.lower() == 'train':
         var['x'] = t_x
         var['target'] = target
         var['lfp_power_target'] = settings['lfp_power_target']
+        var['power_target_period'] = settings['power_target_period']
         var['epsp'] = t_epsp
         var['w_out'] = t_w_out
         var['r'] = t_r
@@ -420,16 +438,21 @@ if args.mode.lower() == 'train':
         var['eval_os'] = eval_os
         var['eval_labels'] = eval_labels
         var['taus_gaus'] = t_taus_gaus
+        var['jitter_onset'] = args.jitter_onset
+        var['jitter_delay'] = args.jitter_delay
+        var['train_settings'] = settings
         var['tr'] = tr
         var['activation'] = training_params['activation']
         fname_time = datetime.datetime.now().strftime("%Y_%m_%d_%H%M%S")
-        if len(settings['taus']) > 1:
-            fname = 'Task_{}_N_{}_Taus_{}_{}_LFP_{}_{}_Act_{}_{}.mat'.format(args.task.lower(), N, settings['taus'][0], 
-                    settings['taus'][1], settings['lfp_power_target'][0], settings['lfp_power_target'][1], 
-                    training_params['activation'], fname_time)
-        elif len(settings['taus']) == 1:
-            fname = 'Task_{}_N_{}_Tau_{}_Act_{}_{}.mat'.format(args.task.lower(), N, settings['taus'][0], 
-                    training_params['activation'], fname_time)
+        # if len(settings['taus']) > 1:
+        #     fname = 'Task_{}_N_{}_Taus_{}_{}_LFP_{}_{}_Act_{}_{}.mat'.format(args.task.lower(), N, settings['taus'][0], 
+        #             settings['taus'][1], settings['lfp_power_target'][0], settings['lfp_power_target'][1], 
+        #             training_params['activation'], fname_time)
+        # elif len(settings['taus']) == 1:
+        #     fname = 'Task_{}_N_{}_Tau_{}_Act_{}_{}.mat'.format(args.task.lower(), N, settings['taus'][0], 
+        #             training_params['activation'], fname_time)
+        fname = 'Task_{}_N_{}_Jitter_{}_{}_LFP{}_{}_{}_{}.mat'.format(args.task.lower(), N, args.jitter_onset, args.jitter_delay,
+                    settings['power_target_period'], settings['lfp_power_target'][0], settings['lfp_power_target'][1], fname_time)
         scipy.io.savemat(os.path.join(out_dir, fname), var)
 
 
