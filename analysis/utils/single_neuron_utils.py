@@ -9,7 +9,7 @@ from scipy import stats
 from scipy.io import loadmat
 import pandas as pd
 from sklearn.metrics import pairwise_distances, silhouette_score
-from umap import UMAP
+# from umap import UMAP
 from sklearn.cluster import KMeans
 import pdb
 

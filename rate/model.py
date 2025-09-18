@@ -13,8 +13,6 @@ import numpy as np
 import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
 import scipy.io
-import scipy.signal
-import pywt
 import pdb
 
 '''
@@ -26,7 +24,7 @@ class FR_RNN_dale:
     Firing-rate RNN model for excitatory and inhibitory neurons
     Initialization of the firing-rate model with recurrent connections
     """
-    def __init__(self, N, P_inh, P_rec, w_in, som_N, w_dist, gain, apply_dale, w_out):
+    def __init__(self, N, P_inh, P_rec, w_in_stim, w_in_lfp, som_N, w_dist, gain, apply_dale, w_out):
         """
         Network initialization method
         N: number of units (neurons)
@@ -47,7 +45,8 @@ class FR_RNN_dale:
         self.N = N
         self.P_inh = P_inh
         self.P_rec = P_rec
-        self.w_in = w_in
+        self.w_in_stim = w_in_stim
+        self.w_in_lfp = w_in_lfp
         self.som_N = som_N
         self.w_dist = w_dist
         self.gain = gain
@@ -149,7 +148,8 @@ class FR_RNN_dale:
         self.mask = settings['m']
         self.som_mask = settings['som_m']
         self.W = settings['w']
-        self.w_in = settings['w_in']
+        self.w_in_stim = settings['w_in_stim']
+        self.w_in_lfp = settings['w_in_lfp']
         self.b_out = settings['b_out']
         self.w_out = settings['w_out']
 
@@ -404,8 +404,55 @@ def generate_target_continuous_mante(settings, label):
     return np.squeeze(z)
 
 '''
-Band-specific LFP target signal
+Band-specific LFP signal
 '''
+def generate_LFP_input(settings):
+    """
+    Generate a continuous LFP signal (sine wave) for the XOR task
+
+    INPUT
+        settings: dict containing the following keys
+            T: duration of a single trial (in steps)
+            stim_on: stimulus starting time (in steps)
+            stim_dur: stimulus duration (in steps)
+            delay: delay b/w two stimuli (in steps)
+            taus: time-constants (in steps)
+            DeltaT: sampling rate
+            lfp_power_target: target power for the LFP
+            power_target_period: 'full' or 'delay'
+    OUTPUT
+        lfp_input: list of length T, each element is a [1,1] tensor
+    """
+    T = settings['T']
+    stim_on = settings['stim_on']
+    stim_dur = settings['stim_dur']
+    delay = settings['delay']
+    taus = settings['taus']
+    DeltaT = settings['DeltaT']
+    fs = settings['fs']           # Hz
+    target_freq = settings['lfp_power_target']
+    
+    if settings['power_target_period'] == 'full':
+        period = [0, T] # entire trial duration
+    elif settings['power_target_period'] == 'delay':
+        period = [stim_on+stim_dur, stim_on+stim_dur+delay] # maintenance period
+    time = np.arange(0, T, dtype=np.float32)
+
+    # Initialize the signal
+    lfp_input = np.zeros((1, T), dtype=np.float32)
+
+    # Generate the LFP signal
+    if len(target_freq) > 1:
+        for f in target_freq:
+            wave = np.sin(2 * np.pi * f / fs * time[period[0]:period[1]] * DeltaT)
+            lfp_input[0, period[0]:period[1]] += wave / len(target_freq)
+    else:
+        f = target_freq[0]
+        wave = np.sin(2 * np.pi * f / fs * time[period[0]:period[1]] * DeltaT)
+        lfp_input[0, period[0]:period[1]] = wave
+
+    return lfp_input
+
 def generate_target_LFP_bandpower(settings):
     """
     Generate a continuous target LFP bandpower signal (y) 
@@ -530,72 +577,6 @@ def calculate_LFP_bandpower(settings, epsp):
 
     return lfp_power_z  # shape [T]
 
-# def calculate_LFP_bandpower(settings, epsp):
-#     """
-#     Calculate the band-specific LFP power from the EPSP signal
-
-#     INPUT
-#         settings: dict containing the following keys
-#             T: duration of a single trial (in steps)
-#             stim_on: stimulus starting time (in steps)
-#             stim_dur: stimulus duration (in steps)
-#             delay: delay b/w two stimuli (in steps)
-#             taus: time-constants (in steps)
-#             DeltaT: sampling rate
-#             fs: sampling rate (Hz)
-#             lfp_power_target: target power for the LFP (min, max)
-#         epsp: EPSP signal from the RNN model
-#     OUTPUT
-#         lfp_power: 1xT LFP power signal
-#     """
-#     T = settings['T']
-#     fs = settings['fs']  # sampling frequency (Hz)
-#     dt = 1 / fs  # time step (s)
-#     fmin, fmax = 4, 100  # frequency range for the CWT
-#     num_freqs = 40
-#     band_lo, band_hi = settings['lfp_power_target']  # target band for LFP power
-    
-#     # nperseg = int(0.01 * fs)  # 10 ms segment length (delay is 50ms)
-#     # f, t, s = scipy.signal.spectrogram(epsp, fs=fs, nperseg=nperseg, noverlap=nperseg//2, 
-#     #                                    nfft=nperseg*20, scaling='density')
-    
-#     # fmin, fmax = 4, 100  # frequency range for the CWT
-#     # num_freqs = 40
-#     # freqs = np.logspace(fmin, fmax, num=num_freqs)  # logarithmically spaced frequencies
-#     # w = 6 # number of cycles
-#     # widths = (fs * w) / (2 * freqs * np.pi)
-#     # cwt_mtx = scipy.signal.cwt(epsp, scipy.signal.morlet2, widths, w=w)
-#     # power = np.abs(cwt_mtx)**2  # dimensions [frequencies x time]
-    
-    
-    
-#     freqs = np.logspace(np.log10(fmin), np.log10(fmax), num=num_freqs) # log-spaced freqs
-    
-#     if tf.executing_eagerly():
-#         epsp_np = epsp.numpy()
-#     else:
-#         raise RuntimeError("epsp is symbolic — can't convert to NumPy in graph mode.")
-#     fc = pywt.central_frequency('morl')
-#     scales = fc / (freqs * dt)
-
-#     # PyWavelets CWT
-#     coeffs, freqs_out = pywt.cwt(epsp_np, scales, 'morl', sampling_period=dt)
-#     power = np.abs(coeffs)**2  # dimensions [frequencies x time]
-    
-#     # calculate power for band of interest
-#     idx = np.where((freqs_out >= band_lo) & (freqs_out <= band_hi))[0] # get freqs in band
-#     band_power = np.mean(power[idx, :], axis=0)  # average power across frequencies in the band
-
-#     # normalize the band power by the baseline period
-#     baseline_period = slice(10, settings['stim_on'])  # baseline period before stimulus onset
-#     baseline_mean = np.mean(band_power[baseline_period])
-#     baseline_std = np.std(band_power[baseline_period])
-#     lfp_power = (band_power - baseline_mean) / baseline_std  # z-score
-#     lfp_power = tf.convert_to_tensor(lfp_power, dtype=tf.float32)
-    
-#     pdb.set_trace()
-
-#     return tf.squeeze(lfp_power)
 
 '''
 CONSTRUCT TF GRAPH FOR TRAINING
@@ -639,7 +620,7 @@ def construct_tf(fr_rnn, settings, training_params):
     # Input node
     # XOR task
     if task == 'xor':
-        stim = tf.placeholder(tf.float32, [2, T], name='u')
+        stim = tf.placeholder(tf.float32, [3, T], name='u')
 
     # Sensory integration task
     elif task == 'mante':
@@ -685,7 +666,8 @@ def construct_tf(fr_rnn, settings, training_params):
     m = tf.get_variable('m', initializer = fr_rnn.mask, dtype=tf.float32, trainable=False)
     som_m = tf.get_variable('som_m', initializer = fr_rnn.som_mask, dtype=tf.float32,
             trainable=False)
-    w_in = tf.get_variable('w_in', initializer = fr_rnn.w_in, dtype=tf.float32, trainable=False)
+    w_in_stim = tf.get_variable('w_in_stim', initializer = fr_rnn.w_in_stim, dtype=tf.float32, trainable=False)
+    w_in_lfp = tf.get_variable('w_in_lfp', initializer = fr_rnn.w_in_lfp, dtype=tf.float32, trainable=False)
     w_out = tf.get_variable('w_out', initializer = fr_rnn.w_out, dtype=tf.float32, 
             trainable=True)
 
@@ -708,9 +690,13 @@ def construct_tf(fr_rnn, settings, training_params):
         elif len(taus) == 1: # one scalar synaptic decay time-constant
             taus_sig = taus[0]
 
+        stim_input = tf.slice(stim, [0, t-1], [2, 1])  # shape [2, 1]
+        stim_lfp = tf.slice(stim, [2, t-1], [1, 1])   # shape [1, 1]
+        
         next_x = tf.multiply((1 - DeltaT/taus_sig), x[t-1]) + \
                 tf.multiply((DeltaT/taus_sig), ((tf.matmul(ww, r[t-1]))\
-                + tf.matmul(w_in, tf.expand_dims(stim[:, t-1], 1)))) +\
+                + tf.matmul(w_in_stim, stim_input) \
+                + tf.matmul(w_in_lfp, stim_lfp))) +\
                 tf.random_normal([fr_rnn.N, 1], dtype=tf.float32)/10
         x.append(next_x)
 
@@ -728,23 +714,17 @@ def construct_tf(fr_rnn, settings, training_params):
                                 ((tf.matmul(ww_exc, r_exc)))) 
         next_epsp = tf.reduce_mean(next_epsp, axis=0, keepdims=False)  # average over excitatory neurons
         
-        # next_epsp = tf.multiply((1 - DeltaT/taus_sig), 
-        #                         tf.expand_dims(x[t-1], 1)) + \
-        #             tf.multiply((DeltaT/taus_sig), 
-        #                         ((tf.multiply(ww, tf.expand_dims(r[t-1], 1))))) # [N x 1]
-        # next_epsp = tf.reduce_mean(next_epsp, axis=0, keepdims=True)  # average over all neurons
-        
         epsp.append(next_epsp)
 
         next_o = tf.matmul(w_out, r[t]) + b_out
         o.append(next_o)
 
-    return stim, z, y, x, r, epsp, o, w, w_in, m, som_m, w_out, b_out, taus_gaus
+    return stim, z, y, x, r, epsp, o, w, w_in_stim, w_in_lfp, m, som_m, w_out, b_out, taus_gaus
 
 '''
 DEFINE LOSS AND OPTIMIZER
 '''
-def loss_op(o, z, epsp, y, training_params, settings):
+def loss_op(o, z, training_params):
     """
     Method to define loss and optimizer for target signal (output and epsp)
     INPUT
@@ -759,35 +739,17 @@ def loss_op(o, z, epsp, y, training_params, settings):
         loss: loss function
         training_op: optimizer
     """
-    # get epsp band power
-    lfp_power = calculate_LFP_bandpower(settings, epsp)
-    
+
     # Loss function
     loss = tf.zeros(1)
     loss_fn = training_params['loss_fn']
-    # for i in range(0, len(o)):
-    #     if loss_fn.lower() == 'l1':
-    #         loss += tf.norm(o[i] - z[i])
-    #     elif loss_fn.lower() == 'l2':
-    #         loss += tf.square(o[i] - z[i]) + tf.norm(lfp_power[i] - y[i])
-    # if loss_fn.lower() == 'l2':
-    #     loss = tf.sqrt(loss)
-    o_full = [tf.zeros_like(o[0])] + o  # length T
-    o_vec  = tf.squeeze(tf.stack(o_full, axis=0))  # [T]
-    if loss_fn == 'l1':
-        loss_out = tf.reduce_sum(tf.abs(o_vec - z))
-        loss_lfp = tf.reduce_sum(tf.square(lfp_power - y))  # L2 on bandpower target
-        loss = loss_out + loss_lfp
-    else:  # 'l2'
-        loss_out = tf.reduce_sum(tf.square(o_vec - z))
-        loss_lfp = tf.reduce_sum(tf.norm(lfp_power - y)) # norm for bandpower
-        # loss_lfp = tf.reduce_sum(tf.square(lfp_power - y))
-        loss = tf.sqrt(1.5*loss_out + loss_lfp + 1e-12)
-        # loss = tf.sqrt(loss_out + loss_lfp + 1e-12)
-        
-        # loss_out = tf.reduce_sum(tf.square(o_vec - z))
-        # loss_lfp = tf.reduce_sum(tf.square(lfp_power - y))
-        # loss = tf.sqrt(1.5*loss_out + loss_lfp + 1e-12)
+    for i in range(0, len(o)):
+        if loss_fn.lower() == 'l1':
+            loss += tf.norm(o[i] - z[i])
+        elif loss_fn.lower() == 'l2':
+            loss += tf.square(o[i] - z[i])
+    if loss_fn.lower() == 'l2':
+        loss = tf.sqrt(loss)
 
     # Optimizer function
     with tf.name_scope('ADAM'):
@@ -795,7 +757,7 @@ def loss_op(o, z, epsp, y, training_params, settings):
 
     training_op = optimizer.minimize(loss) 
 
-    return loss, loss_out, loss_lfp, training_op
+    return loss, training_op
 
 '''
 EVALUATE THE TRAINED MODEL
@@ -886,10 +848,11 @@ def eval_tf(model_dir, settings, u, lesion='', lesion_perc=0.5, calc_epsp=True):
                 # (DeltaT/tau)*(np.matmul(ww, r[:, t-1]) + \
                 # np.matmul(var['w_in'], u[:, t-1])) + \
                 # np.random.randn(N, )/10
-
+        
         next_x = np.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[:, t-1], 1)) + \
                 np.multiply((DeltaT/taus_sig), ((np.matmul(ww, np.expand_dims(r[:, t-1], 1)))\
-                + np.matmul(var['w_in'], np.expand_dims(u[:, t-1], 1)))) +\
+                + np.matmul(var['w_in_stim'], np.expand_dims(u[:2, t-1], 1))\
+                + var['w_in_lfp'] * u[2, t-1])) +\
                 np.random.randn(N, 1)/10
         
         if calc_epsp == True:

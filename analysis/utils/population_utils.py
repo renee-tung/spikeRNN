@@ -12,7 +12,7 @@ from scipy import stats
 import pandas as pd
 from sklearn.metrics import pairwise_distances, silhouette_score
 from sklearn.decomposition import PCA
-from umap import UMAP
+# from umap import UMAP
 from dPCA.dPCA import dPCA
 from scipy.ndimage import gaussian_filter1d
 from sklearn.cluster import KMeans
