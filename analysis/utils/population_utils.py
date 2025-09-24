@@ -12,7 +12,7 @@ from scipy import stats
 import pandas as pd
 from sklearn.metrics import pairwise_distances, silhouette_score
 from sklearn.decomposition import PCA
-# from umap import UMAP
+from umap import UMAP
 from dPCA.dPCA import dPCA
 from scipy.ndimage import gaussian_filter1d
 from sklearn.cluster import KMeans
@@ -20,30 +20,42 @@ import pdb
 
 import load_data as ld
 import single_neuron_utils as sn
+from bootstrap_method import *
 
 
 
-def plot_trajectory_pca(rates_data, trial_labels, settings, pca_obj=None,
-                    cut_off = 50, ds=10, smooth=10, plot=1,
+def plot_trajectory_pca(model_name, condn_phrase, condn_num, pca_obj = None,
+                    neuron_ids=None, rates_data=None, trial_labels=None,
+                    cut_off = 50, ds=10, plot=1,
                     linestyle='-', alpha=0.9,
-                    ax=None, title=None,):
+                    ax=None, title=None,
+                    all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'):
     """
     Plot the trajectory of the population activity for a given model and condition
-    
-    rates_data: trials x neurons x time
-    trial_labels: trials x 2
     """
-    
+    # Load the data
+    if rates_data is None:
+        _, _, rates_data = ld.load_neural_data(model_name, condn_phrase, condn_num, load_rates=True, 
+                                                all_models_dir=all_models_dir)
+    if trial_labels is None:
+        trial_labels, _ = ld.load_bhv_data(model_name, condn_phrase, condn_num, all_models_dir=all_models_dir)
+
+    if neuron_ids is not None: # trim the population activity to the specified neurons
+        rates_data = rates_data[:, neuron_ids, :]
+
     if ax is None and plot:
         # make a new 3d plot
         fig = plt.figure(figsize=(6, 4))
         ax = fig.add_subplot(111, projection='3d')
+        
+    times_ms, times_real, fs_dict = ld.get_times_dict('ds', condn_phrase, condn_num, 
+                                                      model_name=model_name, all_models_dir=all_models_dir) #ds is fs=1000, ms
 
     stims, colors = ld.get_trialtype_colors()
        
     
     # get avg firing rate for each trial type
-    new_T = int(settings['T'] - cut_off)
+    new_T = int(times_ms['T'] - cut_off)
     if new_T <= 0:
         raise ValueError("cut_off is too large, resulting in non-positive time length for trials.")
     trial_types, trial_idxs = np.unique(trial_labels, axis=0, return_inverse=True)
@@ -52,9 +64,9 @@ def plot_trajectory_pca(rates_data, trial_labels, settings, pca_obj=None,
     # get mean rates for each trial type
     for i, trial_type in enumerate(trial_types):
         trials_idx = (trial_idxs == i)
-        trials_rate = rates_data[trials_idx, :, cut_off:] # trials x neurons x time
+        trials_rate = rates_data[cut_off:, :, trials_idx] # time x neurons x trials
 
-        mean_rates[i,:,:] = np.mean(trials_rate, axis=0).T # avg across trials, neurons x time
+        mean_rates[i,:,:] = np.mean(trials_rate, axis=2) # avg across trials, time x neurons
     
     # reshape and combine time axes for the dif trial types
     rates_reshape = np.transpose(mean_rates, (2,0,1)) # neurons x trials x time
@@ -70,14 +82,13 @@ def plot_trajectory_pca(rates_data, trial_labels, settings, pca_obj=None,
     varexp = pca_obj.explained_variance_ratio_ # 3 x 1
     print(f'PCA explained variance: {varexp}, total: {varexp.sum()}')
     rates_comp = rates_pca.reshape(len(trial_types), -1, 3) # trials x time x 3
-    if smooth is not None:
-        rates_comp = gaussian_filter1d(rates_comp, sigma=smooth, axis=1)  # smooth over time axis
+    rates_comp = gaussian_filter1d(rates_comp, sigma=50, axis=1)  # smooth over time axis
     
     # Stimulus times in original timepoints, then downsampled
-    stim1_on = int(settings['stim_on'] - cut_off)
-    stim1_off = int(settings['stim_on'] + settings['stim_dur'] - cut_off)
-    stim2_on = int(settings['stim_on'] + settings['stim_dur'] + settings['delay'] - cut_off)
-    stim2_off = int(settings['stim_on'] + 2*settings['stim_dur'] + settings['delay'] - cut_off)
+    stim1_on = int(times_ms['stim1_on'] - cut_off)
+    stim1_off = int(times_ms['stim1_off'] - cut_off)
+    stim2_on = int(times_ms['stim2_on'] - cut_off)
+    stim2_off = int(times_ms['stim2_off'] - cut_off)
 
     # downsample
     if ds is not None:
@@ -86,6 +97,12 @@ def plot_trajectory_pca(rates_data, trial_labels, settings, pca_obj=None,
         stim1_off = int(stim1_off // ds)
         stim2_on = int(stim2_on // ds)
         stim2_off = int(stim2_off // ds)
+
+    # # Stimulus times in original timepoints, then downsampled
+    # stim1_on = int((times_ms['stim1_on'] - cut_off) // ds)
+    # stim1_off = int((times_ms['stim1_off'] - cut_off) // ds)
+    # stim2_on = int((times_ms['stim2_on'] - cut_off) // ds)
+    # stim2_off = int((times_ms['stim2_off'] - cut_off) // ds)
 
     # plot the trajectory in 3D
     for i, trial_type in enumerate(trial_types):
@@ -116,7 +133,7 @@ def plot_trajectory_pca(rates_data, trial_labels, settings, pca_obj=None,
     if title is not None:
         ax.set_title(f'{title}')#, {model_name[-6:]}, {condn_phrase} {condn_num}')
     else:
-        ax.set_title(f'Avg model trajectory')
+        ax.set_title(f'Avg trajectory for {model_name[-6:]}, {condn_phrase} {condn_num}')
     ax.legend()
     
     ax.set_xlabel('PC1')
@@ -125,7 +142,7 @@ def plot_trajectory_pca(rates_data, trial_labels, settings, pca_obj=None,
     
     return ax, pca_obj
 
-def plot_trajectory_comps(settings, pcs, trial_labels, 
+def plot_trajectory_comps(model_name, condn_phrase, condn_num, pcs, trial_labels, 
                           cut_off=50, ds=10, ax=None, title=None,
                           linestyle='-', alpha=0.9,):
     """ plot trajectory given components and trial labels """
@@ -135,7 +152,7 @@ def plot_trajectory_comps(settings, pcs, trial_labels,
         ax = fig.add_subplot(111, projection='3d')
     
     stims, colors = ld.get_trialtype_colors()
-    
+    times_ms, times_real, fs_dict = ld.get_times_dict('ds', condn_phrase, condn_num, model_name=model_name) #ds is fs=1000, ms
     
     if ds is not None:
         pcs = pcs[:, ::ds, :]  # downsample
@@ -177,7 +194,7 @@ def plot_trajectory_comps(settings, pcs, trial_labels,
     if title is not None:
         ax.set_title(f'{title}')#, {model_name[-6:]}, {condn_phrase} {condn_num}')
     else:
-        ax.set_title(f'Avg trajectory for model')
+        ax.set_title(f'Avg trajectory for {model_name[-6:]}, {condn_phrase} {condn_num}')
     ax.legend()
     
     ax.set_xlabel('PC1')
@@ -185,13 +202,11 @@ def plot_trajectory_comps(settings, pcs, trial_labels,
     ax.set_zlabel('PC3');
 
 
-# NOT UPDATED YET
 def plot_trajectory_dpca(model_name, condn_phrase, condn_num, 
                     dpca_obj = None, plot_type='t', ds=10,
                     neuron_ids=None, rates_data=None, trial_labels=None, cut_off = 50,
                     ax=None, title=None):
     """
-    ***NOT UPDATED***
     Plot the trajectory of the population activity for a given model and condition
     plot_type can be 't' for time, 's' for stimulus, or 'st' for both.
     """
@@ -291,6 +306,84 @@ def plot_trajectory_dpca(model_name, condn_phrase, condn_num,
     
     return ax, dpca_obj
 
+
+
+
+def plot_trajectory_animation(model_name, condn_phrase, condn_num, pca_obj=None,
+                    neuron_ids=None, rates_data=None, cut_off=50,
+                    ax=None, title=None, save_path=None):
+    """
+    Plot or animate the trajectory of population activity in PCA space.
+    If `as_animation` is True, animates instead of static plot.
+    """
+
+    # Load and preprocess data
+    if rates_data is None:
+        _, _, rates_data = ld.load_neural_data(model_name, condn_phrase, condn_num, load_rates=True)
+    if neuron_ids is not None:
+        rates_data = rates_data[:, neuron_ids, :]
+
+    trial_labels, trial_perfs = ld.load_bhv_data(model_name, condn_phrase, condn_num)
+    times_ms, times_real, fs_dict = ld.get_times_dict('ds', condn_phrase, condn_num, model_name=model_name)
+    stims, colors = ld.get_trialtype_colors()
+
+    new_T = int(times_ms['T'] - cut_off)
+    if new_T <= 0:
+        raise ValueError("cut_off is too large.")
+
+    trial_types, trial_idxs = np.unique(trial_labels, axis=0, return_inverse=True)
+    mean_rates = np.zeros((len(trial_types), new_T, rates_data.shape[1]))
+
+    for i, trial_type in enumerate(trial_types):
+        trials_idx = (trial_idxs == i)
+        trials_rate = rates_data[cut_off:, :, trials_idx]
+        mean_rates[i,:,:] = np.mean(trials_rate, axis=2)
+
+    rates_reshape = np.transpose(mean_rates, (2,0,1)).reshape(rates_data.shape[1], -1).T
+
+    if pca_obj is None:
+        pca_obj = PCA(n_components=3)
+        pca_obj.fit(rates_reshape)
+    rates_pca = pca_obj.transform(rates_reshape)
+    varexp = pca_obj.explained_variance_ratio_
+    print(f'PCA explained variance: {varexp}, total: {varexp.sum()}')
+
+    rates_pca = rates_pca.reshape(len(trial_types), new_T, 3)
+    
+    # downsample in time
+    rates_pca = rates_pca[:, ::10, :]  # downsample by factor of 10
+
+    # If animating, skip static plot and go to animation block
+    fig = plt.figure(figsize=(6, 5))
+    ax = fig.add_subplot(111, projection='3d')
+
+    lines = []
+    for i in range(rates_pca.shape[0]):
+        line, = ax.plot([], [], [], color=colors[i], label=str(trial_types[i]))
+        lines.append(line)
+
+    ax.set_xlim(rates_pca[..., 0].min(), rates_pca[..., 0].max())
+    ax.set_ylim(rates_pca[..., 1].min(), rates_pca[..., 1].max())
+    ax.set_zlim(rates_pca[..., 2].min(), rates_pca[..., 2].max())
+    ax.set_xlabel('PC1')
+    ax.set_ylabel('PC2')
+    ax.set_zlabel('PC3')
+    ax.set_title(title or f'Animated Trajectory: {model_name[-6:]}, {condn_phrase} {condn_num}')
+    ax.legend()
+
+    def update(frame):
+        for i in range(rates_pca.shape[0]):
+            lines[i].set_data(rates_pca[i, :frame, 0], rates_pca[i, :frame, 1])
+            lines[i].set_3d_properties(rates_pca[i, :frame, 2])
+        return lines
+
+    ani = FuncAnimation(fig, update, frames=new_T, interval=50, blit=False)
+
+    if save_path is not None:
+        ani.save(save_path, writer='ffmpeg', fps=20)
+        print(f'Animation saved to {save_path}')
+    else:
+        return HTML(ani.to_jshtml())
 
 
 

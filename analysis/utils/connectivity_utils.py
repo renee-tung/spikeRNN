@@ -7,9 +7,22 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from scipy import stats
 import pandas as pd
+import networkx as nx
 
 import load_data as ld
-# from bootstrap_method import *
+from bootstrap_method import *
+
+
+
+
+def build_directed_graph(W):
+    G = nx.DiGraph()
+    N = W.shape[0]
+    for i in range(N):
+        for j in range(N):
+            if W[i, j] != 0:
+                G.add_edge(i, j, weight=W[j, i])
+    return G
 
 
 '''
@@ -154,3 +167,61 @@ def plot_connectivity_matrix_by_type(w, exc_ind, inh_ind, title=None, cmap='bwr'
     
     if title is not None:
         plt.title(title)
+
+
+def plot_degree_distribution(w, exc_ind, inh_ind):
+    G = build_directed_graph(w)
+
+    # get the degree of each node
+    degree_dict = dict(G.degree())
+    # get the in-degree of each node
+    in_degree_dict = dict(G.in_degree())
+    # get the out-degree of each node
+    out_degree_dict = dict(G.out_degree())
+
+
+    # boxplot for degree of exc versus inh nodes
+    types = ['exc','inh']
+    inds = [exc_ind, inh_ind]
+    degrees = []
+    for i, t in enumerate(types):
+        degrees.append([degree_dict[j] for j in inds[i]])
+
+    fig, axs = plt.subplots(1,3,figsize=(16,4))
+    axs[0].boxplot(degrees, tick_labels=types)
+    axs[0].set_ylabel('degree')
+    axs[0].set_title('degree of exc vs inh nodes')
+
+    axs[1].boxplot([in_degree_dict[j] for j in exc_ind], positions=[0], widths=0.5)
+    axs[1].boxplot([in_degree_dict[j] for j in inh_ind], positions=[1], widths=0.5)
+    axs[1].set_ylabel('in-degree')
+    axs[1].set_title('in-degree of exc vs inh nodes')
+    axs[1].set_xticks([0, 1], ['exc', 'inh'])
+
+    axs[2].boxplot([out_degree_dict[j] for j in exc_ind], positions=[0], widths=0.5)
+    axs[2].boxplot([out_degree_dict[j] for j in inh_ind], positions=[1], widths=0.5)
+    axs[2].set_ylabel('out-degree')
+    axs[2].set_title('out-degree of exc vs inh nodes')
+    axs[2].set_xticks([0, 1], ['exc', 'inh'])
+
+    plt.show()
+
+
+'''
+Calculate signed graph laplacian
+'''
+
+def compute_graph_laplacian_signed(G):
+    A = nx.to_numpy_array(G, weight='weight')
+    abs_A = np.abs(A)
+    D = np.diag(np.sum(abs_A, axis=1))  # Degree matrix
+    L = D - A
+    return L
+
+
+def compute_graph_laplacian(G):
+    A = nx.adjacency_matrix(G).todense()
+    D = np.diag(np.sum(A, axis=1))  # Degree matrix
+    L = D - A  # Laplacian matrix
+
+    return L

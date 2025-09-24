@@ -9,12 +9,12 @@ from scipy import stats
 from scipy.io import loadmat
 import pandas as pd
 from sklearn.metrics import pairwise_distances, silhouette_score
-# from umap import UMAP
+from umap import UMAP
 from sklearn.cluster import KMeans
 import pdb
 
 import load_data as ld
-# from bootstrap_method import *
+from bootstrap_method import *
 
 
 '''
@@ -233,8 +233,7 @@ def plot_stim1_tuning(tuning, cell_idxs=None, exc_ind = None, ax=None, title=Non
 RASTER PLOT FUNCTIONS
 '''
 
-def plot_trial_raster(trial_df, condn_phrase, condn_num, sort=None, title=None, ax=None, hlines=None,
-                      all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'):
+def plot_trial_raster(trial_df, condn_phrase, condn_num, sort=None, title=None, ax=None, hlines=None):
     """
     Plot a raster plot of all cells in the trial in the given DataFrame.
     
@@ -247,12 +246,10 @@ def plot_trial_raster(trial_df, condn_phrase, condn_num, sort=None, title=None, 
     # delay = trial_df.iloc[0]['delay']
 
     # behavioral data
-    trial_labels, trial_perfs = ld.load_bhv_data(model_name, condn_phrase=condn_phrase, condn_num=condn_num,
-                                                 all_models_dir=all_models_dir)
+    trial_labels, trial_perfs = ld.load_bhv_data(model_name, condn_phrase=condn_phrase, condn_num=condn_num)
 
     # timing data
-    times_ms, times_real, fs_dict = ld.get_times_dict('ds', condn_phrase, condn_num,
-                                                      all_models_dir=all_models_dir) #ds is fs=1000, ms
+    times_ms, times_real, fs_dict = ld.get_times_dict('ds', condn_phrase, condn_num) #ds is fs=1000, ms
 
     if sort is not None:
         trial_df = trial_df.iloc[sort]
