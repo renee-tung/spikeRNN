@@ -40,6 +40,7 @@ from model import generate_input_stim_go_nogo
 from model import generate_target_continuous_go_nogo
 
 from model import generate_LFP_input
+from model import generate_LFP_input_phase
 
 from model import construct_tf
 from model import loss_op
@@ -96,7 +97,7 @@ parser.add_argument("--jitter_delay", required=False,
 args = parser.parse_args()
 
 # Set up the output dir where the output model will be saved
-out_dir = os.path.join(args.output_dir, 'models', args.task.lower())
+out_dir = os.path.join(args.output_dir, 'models', args.task.lower(), 'phase')
 if args.apply_dale == False:
     out_dir = os.path.join(out_dir, 'NoDale')
 if len(args.decay_taus) > 1:
@@ -239,9 +240,9 @@ if args.mode.lower() == 'train':
             # XOR task
             u, label = generate_input_stim_xor(settings)
             target = generate_target_continuous_xor(settings, label)
-            lfp_stim = generate_LFP_input(settings)
-            # stack the LFP signal to the input
-            u = np.vstack((u, lfp_stim)) # shape (3, T)
+            # lfp_input = generate_LFP_input(settings)
+            # u = np.vstack((u, lfp_input)) # stack the LFP signal to the input, shape (3, T)
+            u = generate_LFP_input_phase(settings, u)
             x0, r0, w0, w_in_stim0, w_in_lfp0, taus_gaus0 = \
                     sess.run([x, r, w, w_in_stim, w_in_lfp, taus], feed_dict={input_node: u, z: target})
 
@@ -274,13 +275,11 @@ if args.mode.lower() == 'train':
                         settings_jitter['delay'] = settings['delay'] + np.random.randint(-args.jitter_delay, args.jitter_delay+1)
                     u, label = generate_input_stim_xor(settings_jitter)
                     target = generate_target_continuous_xor(settings_jitter, label)
-                    lfp_stim = generate_LFP_input(settings_jitter)
-                    u = np.vstack((u, lfp_stim)) # stack the LFP signal to the input, shape (3, T)
+                    u = generate_LFP_input_phase(settings_jitter, u) # stack the LFP signal to the input, shape (3, T)
                 else:
                     u, label = generate_input_stim_xor(settings)
                     target = generate_target_continuous_xor(settings, label)
-                    lfp_stim = generate_LFP_input(settings)
-                    u = np.vstack((u, lfp_stim)) # stack the LFP signal to the input, shape (3, T)
+                    u = generate_LFP_input_phase(settings, u) # stack the LFP signal to the input, shape (3, T)
 
             elif args.task.lower() == 'mante':
                 u, label = generate_input_stim_mante(settings)
@@ -344,8 +343,7 @@ if args.mode.lower() == 'train':
                     for ii in range(eval_perf.shape[-1]):
                         eval_u, eval_label = generate_input_stim_xor(settings)
                         eval_target = generate_target_continuous_xor(settings, eval_label)
-                        lfp_stim = generate_LFP_input(settings)
-                        eval_u = np.vstack((eval_u, lfp_stim)) # stack the LFP signal to the input, shape (3, T)
+                        eval_u = generate_LFP_input_phase(settings, eval_u) # stack the LFP signal to the input, shape (3, T)
                         eval_o, eval_l = sess.run([o, loss], feed_dict = \
                                 {input_node: eval_u, z: eval_target})
                         eval_losses[0, ii] = eval_l

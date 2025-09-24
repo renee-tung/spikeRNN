@@ -27,9 +27,10 @@ clear; clc;
 
 % Directory containing all the trained rate RNN model .mat files
 % model_dir = '/home/nuttidalab/Documents/spikeRNN/models/xor/P_rec_0.2_Taus_4.0_25.0'; 
-model_dir = '/home/nuttidalab/Documents/renee/lfp_models/models/xor/P_rec_0.2_Taus_4.0_25.0';
+model_dir = '/home/nuttidalab/Documents/renee/lfp_input_models_wtrain/models/xor/phase/P_rec_0.2_Taus_4.0_25.0';
 
-mat_files = dir(fullfile(model_dir, '*8_25*.mat'));
+mat_files = dir(fullfile(model_dir, '*_4.0_*.mat'));
+input_freq = 4;
 
 % Whether to use the initial random connectivity weights
 % This should be set to false unless you want to compare
@@ -228,19 +229,26 @@ for i = 1:length(mat_files)
 
         % Stim 2
         if rand >= 0.50
-          u(2, 111:160) = 1;
+          u(2, 151:200) = 1;
           u_lab(2) = 1;
         else
-          u(2, 111:160) = -1;
+          u(2, 151:200) = -1;
           u_lab(2) = -1;
         end
         label = prod(u_lab);
         trials(j) = label;
 
+        % create LFP input signal
+        fs = 200;
+        wave = sin(2*pi*input_freq/fs*(1:301));
+        wave = wave * u_lab(1); % flip based on stim1
+        lfp = zeros(1,301); % python code: 2 * np.pi * f / fs * time[period[0]:period[1]]
+        lfp(101:150) = wave(101:150);
+
         stims = struct();
         stims.mode = 'none';
         [W, REC, spk, rs, all_fr, out, params] = LIF_network_fnc(curr_full, scaling_factor,...
-            u, stims, down_sample, use_initial_weights);
+            u, stims, lfp, down_sample, use_initial_weights);
         outs(j, :) = out;
         if label == 1
           if max(out(20000:end)) > 0.7

@@ -19,7 +19,7 @@ clear; clc
 
 normalize_ipscs = 0;
 lesion_connections = 0; % if not lesioning put 0, else 'ii' etc
-delay = 50; % 150 is the standard "testing" delay duration
+delay = 400; % 150 is the standard "testing" delay duration
 n_trials_per_condn = 250;
 
 
@@ -45,7 +45,7 @@ addpath('/home/nuttidalab/Documents/renee/spikeRNN/spiking/')
 % all_model_path = '/scratch/all_DMS_models/';
 % all_model_path = '/home/nuttidalab/Documents/renee/all_DMS_models/';
 % all_model_path = '/home/nuttidalab/Documents/renee/jitter_models/models/xor/P_rec_0.2_Taus_4.0_25.0/'
-all_model_path = '/home/nuttidalab/Documents/renee/lfp_models/models/xor/P_rec_0.2_Taus_4.0_25.0';
+all_model_path = '/home/nuttidalab/Documents/renee/lfp_input_models_wtrain/models/xor/phase/P_rec_0.2_Taus_4.0_25.0';
 cd(all_model_path)
 model_list = dir('*.mat');
 
@@ -59,10 +59,10 @@ fs_spk = 20000;
 fs_ds = 1000; % downsample frequency for LFP data
 
 % Time settings
-stim_on = 31;
+stim_on = 51;
 stim_dur = 50;
 % delay was defined earlier
-T = 261 + delay;
+T = 251 + delay;
 
 stim1_onset = (stim_on) / fs_rate * fs_spk;
 stim1_offset = (stim_on + stim_dur) / fs_rate * fs_spk;
@@ -106,7 +106,13 @@ for n_model = 1:length(model_list)
     model_path = fullfile(all_model_path, [model_name,'.mat']);
     load(model_path)
     model_path = fullfile(all_model_path, [model_name,'.mat']); % rewrite bc was overwritten
-    disp(['mean stable performance ', num2str(mean(all_perfs))])
+
+    % get input freq
+    split1 = strsplit(model_name, '_2025');
+    split2 = strsplit(split1{1}, '_');
+    input_freq = str2num(split2{end});
+
+    disp([num2str(input_freq), 'Hz model, mean stable performance ', num2str(mean(all_perfs))])
 
     % make directory for this model if one doesn't exist
     if ~exist(model_name, 'dir')
@@ -121,10 +127,10 @@ for n_model = 1:length(model_list)
     timing_save_name = [this_model_dir,'/','timingdata',norm_name,lesion_name,'_delay',num2str(delay),'.mat'];
 
     % check if there is data calculated already
-    if exist(neural_save_name, 'file') > 0
-        disp('already calculated, moving to next model...')
-        continue
-    end
+    % if exist(neural_save_name, 'file') > 0
+    %     disp('already calculated, moving to next model...')
+    %     continue
+    % end
 
     % get scaling param for this model
     scaling_factor = opt_scaling_factor;
@@ -143,6 +149,10 @@ for n_model = 1:length(model_list)
     all_trial_perfs = zeros(n_trials_total,1);
     
     for ii = stim1s
+        wave = sin(2*pi*input_freq/fs_rate*(1:T));
+        wave = wave * ii; % flip based on stim1
+        lfp_input = zeros(1,T+1); % python code: 2 * np.pi * f / fs * time[period[0]:period[1]]
+        lfp_input(stim_on+stim_dur:stim_on+stim_dur+delay) = wave(stim_on+stim_dur:stim_on+stim_dur+delay);
         for jj = stim2s
             [u, label] = generate_specific_input_stim_xor(T, ii, jj, stim_on, stim_dur, delay);
             this_spk_times(n_trials_per_condn) = struct();
@@ -151,7 +161,7 @@ for n_model = 1:length(model_list)
             this_trial_perfs = zeros(n_trials_per_condn,1);
             parfor n_trial=1:n_trials_per_condn
                 [~, ~, spk_train, rates, ~, outputs, params] = LIF_network_fnc(model_path, scaling_factor,...
-                    u, stims, down_sample, use_initial_weights);
+                    u, stims, lfp_input, down_sample, use_initial_weights);
                 
                 % get spike times, convert to 0-indexing, and store
                 spk_times = arrayfun(@(i) find(spk_train(i,:) ~= 0)-1, (1:size(spk_train,1))', 'UniformOutput', false);

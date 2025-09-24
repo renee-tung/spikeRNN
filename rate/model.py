@@ -453,6 +453,58 @@ def generate_LFP_input(settings):
 
     return lfp_input
 
+def generate_LFP_input_phase(settings, u):
+    """
+    Generate a continuous LFP signal (sine wave) for the XOR task
+
+    INPUT
+        settings: dict containing the following keys
+            T: duration of a single trial (in steps)
+            stim_on: stimulus starting time (in steps)
+            stim_dur: stimulus duration (in steps)
+            delay: delay b/w two stimuli (in steps)
+            taus: time-constants (in steps)
+            DeltaT: sampling rate
+            lfp_power_target: target power for the LFP
+            power_target_period: 'full' or 'delay'
+    OUTPUT
+        lfp_input: list of length T, each element is a [1,1] tensor
+    """
+    T = settings['T']
+    stim_on = settings['stim_on']
+    stim_dur = settings['stim_dur']
+    delay = settings['delay']
+    taus = settings['taus']
+    DeltaT = settings['DeltaT']
+    fs = settings['fs']           # Hz
+    target_freq = settings['lfp_power_target']
+    
+    if settings['power_target_period'] == 'full':
+        period = [0, T] # entire trial duration
+    elif settings['power_target_period'] == 'delay':
+        period = [stim_on+stim_dur, stim_on+stim_dur+delay] # maintenance period
+    time = np.arange(0, T, dtype=np.float32)
+
+    # Initialize the signal
+    lfp_input = np.zeros((1, T), dtype=np.float32)
+    stim1 = u[0, stim_on+1]
+
+    # Generate the LFP signal
+    if len(target_freq) > 1:
+        for f in target_freq:
+            wave = np.sin(2 * np.pi * f / fs * time[period[0]:period[1]] * DeltaT)
+            lfp_input[0, period[0]:period[1]] += wave / len(target_freq)
+    else:
+        f = target_freq[0]
+        wave = np.sin(2 * np.pi * f / fs * time[period[0]:period[1]] * DeltaT)
+        lfp_input[0, period[0]:period[1]] = wave
+    
+    lfp_input = lfp_input * stim1 # different phases for +1 or -1 first stim
+    
+    u = np.vstack((u, lfp_input)) # shape (3, T)
+
+    return u
+
 def generate_target_LFP_bandpower(settings):
     """
     Generate a continuous target LFP bandpower signal (y) 
@@ -667,7 +719,7 @@ def construct_tf(fr_rnn, settings, training_params):
     som_m = tf.get_variable('som_m', initializer = fr_rnn.som_mask, dtype=tf.float32,
             trainable=False)
     w_in_stim = tf.get_variable('w_in_stim', initializer = fr_rnn.w_in_stim, dtype=tf.float32, trainable=False)
-    w_in_lfp = tf.get_variable('w_in_lfp', initializer = fr_rnn.w_in_lfp, dtype=tf.float32, trainable=False)
+    w_in_lfp = tf.get_variable('w_in_lfp', initializer = fr_rnn.w_in_lfp, dtype=tf.float32, trainable=True)
     w_out = tf.get_variable('w_out', initializer = fr_rnn.w_out, dtype=tf.float32, 
             trainable=True)
 
@@ -812,6 +864,8 @@ def eval_tf(model_dir, settings, u, lesion='', lesion_perc=0.5, calc_epsp=True):
     # Recurrent weights and masks
     # w = var['w0'] #!!!!!!!!!!!!
     w = var['w']
+    w_in_lfp = var['w_in_lfp']
+    w_in_stim = var['w_in_stim']
 
     m = var['m']
     som_m = var['som_m']
@@ -828,16 +882,25 @@ def eval_tf(model_dir, settings, u, lesion='', lesion_perc=0.5, calc_epsp=True):
 
     # lesioning
     if len(lesion) != 0:
-        lesion_mask = np.ones_like(w)
-        if lesion == 'ii': # Inh -> Inh
-            lesion_mask[np.ix_(inh_ind, inh_ind)] = lesion_perc
-        elif lesion == 'ei': # Inh -> Exc
-            lesion_mask[np.ix_(exc_ind, inh_ind)] = lesion_perc
-        elif lesion == 'ie':  # Exc -> Inh
-            lesion_mask[np.ix_(inh_ind, exc_ind)] = lesion_perc 
-        elif lesion == 'ee': # Exc -> Exc
-            lesion_mask[np.ix_(exc_ind, exc_ind)] = lesion_perc
-        w = np.multiply(w, lesion_mask)
+        if lesion in ['ii', 'ei', 'ie', 'ee']:
+            lesion_mask = np.ones_like(w)
+            if lesion == 'ii': # Inh -> Inh
+                lesion_mask[np.ix_(inh_ind, inh_ind)] = lesion_perc
+            elif lesion == 'ei': # Inh -> Exc
+                lesion_mask[np.ix_(exc_ind, inh_ind)] = lesion_perc
+            elif lesion == 'ie':  # Exc -> Inh
+                lesion_mask[np.ix_(inh_ind, exc_ind)] = lesion_perc 
+            elif lesion == 'ee': # Exc -> Exc
+                lesion_mask[np.ix_(exc_ind, exc_ind)] = lesion_perc
+            w = np.multiply(w, lesion_mask)
+        elif 'lfp' in lesion:
+            if lesion == 'lfp_exc':
+                w_in_lfp[exc_ind, 0] = w_in_lfp[exc_ind, 0] * lesion_perc
+            elif lesion == 'lfp_inh':
+                w_in_lfp[inh_ind, 0] = w_in_lfp[inh_ind, 0] * lesion_perc
+        else:
+            raise ValueError("Invalid lesion type. Choose either 'ii', 'ei', 'ie', 'ee', 'lfp_exc' or 'lfp_inh'.")
+                
 
     for t in range(1, T):
         # next_x is [N x 1]
@@ -851,8 +914,8 @@ def eval_tf(model_dir, settings, u, lesion='', lesion_perc=0.5, calc_epsp=True):
         
         next_x = np.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[:, t-1], 1)) + \
                 np.multiply((DeltaT/taus_sig), ((np.matmul(ww, np.expand_dims(r[:, t-1], 1)))\
-                + np.matmul(var['w_in_stim'], np.expand_dims(u[:2, t-1], 1))\
-                + var['w_in_lfp'] * u[2, t-1])) +\
+                + np.matmul(w_in_stim, np.expand_dims(u[:2, t-1], 1))\
+                + w_in_lfp * u[2, t-1])) +\
                 np.random.randn(N, 1)/10
         
         if calc_epsp == True:

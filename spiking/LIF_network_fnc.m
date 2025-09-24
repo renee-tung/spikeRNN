@@ -8,7 +8,7 @@
 % (https://senselab.med.yale.edu/modeldb/ShowModel.cshtml?model=190565&file=/NicolaClopath2017/)
 
 function [W, REC, spk, rs, all_fr, out, params] = LIF_network_fnc(model_path,...
-scaling_factor, u, stims, downsample, use_initial_weights)
+scaling_factor, u, stims, lfp, downsample, use_initial_weights)
 % FUNCTION LIF_network_fnc
 % INPUT
 %   - model_path: trained model full path (directory + filename)
@@ -37,7 +37,7 @@ scaling_factor, u, stims, downsample, use_initial_weights)
 % Extract the number of units and the connectivity
 % matrix from the trained continuous rate model
 %------------------------------------------------------
-load(model_path, 'w_in', 'w', 'w0', 'N', 'm', 'som_m', 'w_out', ...
+load(model_path, 'w_in_stim', 'w_in_lfp', 'w', 'w0', 'N', 'm', 'som_m', 'w_out', ...
 'inh', 'exc', 'taus_gaus0', 'taus_gaus', 'taus');
 
 % Number of neurons and the trained connectivity weight
@@ -59,8 +59,15 @@ inh_ind = find(inh);
 exc_ind = find(exc);
 
 % Input stimulus
-u = u(:, 1:downsample:end);
-ext_stim = w_in*u;
+u = u(:, 1:downsample:end); % 2 x T
+u_input = w_in_stim*u; % N_neurons x T
+
+% LFP input
+lfp = lfp(1:downsample:end);
+lfp_input = w_in_lfp*lfp; % N_neurons x T
+
+ext_stim = u_input + lfp_input;
+
 
 %------------------------------------------------------
 % LIF network parameters
