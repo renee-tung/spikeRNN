@@ -446,10 +446,13 @@ def get_weights_init(model_name, condn_phrase, condn_num, remove_lowfr=False,
     return final_w
 
 
-def get_models_by_perf(low_cutoff, high_cutoff, condn_phrase, condn_num='', 
+def get_models_by_perf(low_cutoff, high_cutoff, condn_phrase, condn_num='', model_list=[],
                        all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'):
     
-    model_dirs = get_immediate_subdirs(all_models_dir)
+    if len(model_list) == 0:
+        model_dirs = get_immediate_subdirs(all_models_dir)
+    else:
+        model_dirs = model_list
     model_perfs = []
     model_names = []
     for i, model_name in enumerate(model_dirs):
