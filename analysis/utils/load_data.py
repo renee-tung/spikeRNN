@@ -237,6 +237,23 @@ def load_bhv_data(model_name, condn_phrase, condn_num='',
 
     return trial_labels, trial_perfs
 
+
+def load_bhv_data_with_phase(model_name, condn_phrase, all_models_dir):
+    model_dir = os.path.join(all_models_dir, model_name)
+    bhvdata_path = find_files_keywords(model_dir, ['bhvdata', condn_phrase])[0]
+    if bhvdata_path == []:
+        print(f'No behavioral data found for {model_name} with condition {condn_phrase}')
+        return None, None
+
+    # Load the data
+    bhv_mat = sio.loadmat(bhvdata_path)
+    trial_labels = bhv_mat['all_trial_labels']
+    trial_perfs = bhv_mat['all_trial_perfs'].flatten()
+    trial_phaseshifts = bhv_mat['all_trial_shifts'].flatten()
+    
+    return trial_labels, trial_perfs, trial_phaseshifts
+
+
 def load_timing_data(model_name, condn_phrase, condn_num='', 
                      all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'): #all_models_dir='/scratch/all_DMS_models/',):
     '''

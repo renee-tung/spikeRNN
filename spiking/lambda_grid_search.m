@@ -31,6 +31,7 @@ model_dir = '/home/nuttidalab/Documents/renee/lfp_input_models_wtrain/models/xor
 
 mat_files = dir(fullfile(model_dir, '*_4.0_*.mat'));
 input_freq = 4;
+disp(['input frequency: ', num2str(input_freq)]);
 
 % Whether to use the initial random connectivity weights
 % This should be set to false unless you want to compare
@@ -63,16 +64,16 @@ for i = 1:length(mat_files)
   % Load the model
   load(curr_full);
 
-  figure;
+  
   % Skip if the file was run before
-  if exist('opt_scaling_factor')
-    clearvars -except model_dir mat_files n_trials scaling_factors use_initial_weights
+  if exist('opt_scaling_factor') && ~isnan(opt_scaling_factor)
+    clearvars -except model_dir mat_files n_trials scaling_factors use_initial_weights input_freq
     continue;
   else
     opt_scaling_factor = NaN;
     save(curr_full, 'opt_scaling_factor', '-append');
   end
-
+  figure;
   % Go-NoGo task
   if strcmpi(task_name, 'go-nogo')
     down_sample = 1;
@@ -262,10 +263,10 @@ for i = 1:length(mat_files)
       end % parfor end
       all_perfs(k) = mean(perfs);
 
-      % subplot(3, 4, k); hold on;
-      % plot(outs(trials == 1,:)', 'Color', [1, 0, 0, 0.5]);
-      % plot(outs(trials == -1,:)', 'Color', [0, 0, 1, 0.5]);
-      % title(['scaling factor ', num2str(scaling_factors(k))])
+      subplot(3, 4, k); hold on;
+      plot(outs(trials == 1,:)', 'Color', [1, 0, 0, 0.5]);
+      plot(outs(trials == -1,:)', 'Color', [0, 0, 1, 0.5]);
+      title(['scaling factor ', num2str(scaling_factors(k))])
     
     end
     [v, ind] = max(all_perfs);
@@ -278,7 +279,7 @@ for i = 1:length(mat_files)
     % Save the optimal scaling factor
     opt_scaling_factor = scaling_factors(ind);
     save(curr_full, 'opt_scaling_factor', 'all_perfs', 'scaling_factors', '-append');
-    clearvars -except model_dir mat_files n_trials scaling_factors use_initial_weights
+    clearvars -except model_dir mat_files n_trials scaling_factors use_initial_weights input_freq
   end
 end
 

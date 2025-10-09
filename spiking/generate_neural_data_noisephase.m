@@ -15,6 +15,9 @@
 
 clear; clc
 
+gaussianstd = 1;
+phasecycleshift = 1; % +/- how many cycles to randomly shift the phase
+
 %% some params for this data
 
 normalize_ipscs = 0;
@@ -47,7 +50,8 @@ addpath('/home/nuttidalab/Documents/renee/spikeRNN/spiking/')
 % all_model_path = '/home/nuttidalab/Documents/renee/jitter_models/models/xor/P_rec_0.2_Taus_4.0_25.0/'
 all_model_path = '/home/nuttidalab/Documents/renee/lfp_input_models_wtrain/models/xor/phase/P_rec_0.2_Taus_4.0_25.0';
 cd(all_model_path)
-model_list = dir('*.mat');
+% model_list = dir('*.mat');
+model_list = dir ('*4.0*.mat'); % 4Hz models only for now
 
 
 %% Timing info for the trials we want to generate
@@ -122,12 +126,12 @@ for n_model = 1:length(model_list)
     this_model_dir = fullfile(all_model_path,model_name);
 
     % save name for the output
-    neural_save_name = [this_model_dir,'/','neuraldata',norm_name,lesion_name,'_delay',num2str(delay),'.mat'];
-    bhv_save_name = [this_model_dir,'/','bhvdata',norm_name,lesion_name,'_delay',num2str(delay),'.mat'];
-    timing_save_name = [this_model_dir,'/','timingdata',norm_name,lesion_name,'_delay',num2str(delay),'.mat'];
+    neural_save_name = [this_model_dir,'/','neuraldata',norm_name,lesion_name,'_delay',num2str(delay),'noisegaussian', num2str(gaussianstd),'phaseshift',num2str(phasecycleshift),'.mat'];
+    bhv_save_name = [this_model_dir,'/','bhvdata',norm_name,lesion_name,'_delay',num2str(delay),'noisegaussian', num2str(gaussianstd), 'phaseshift', num2str(phasecycleshift),'.mat'];
+    timing_save_name = [this_model_dir,'/','timingdata',norm_name,lesion_name,'_delay',num2str(delay),'noisegaussian', num2str(gaussianstd), 'phaseshift', num2str(phasecycleshift),'.mat'];
 
     % check if there is data calculated already
-    if exist(neural_save_name, 'file') > 0
+    if exist(bhv_save_name, 'file') > 0
         disp('already calculated, moving to next model...')
         continue
     end
@@ -147,13 +151,13 @@ for n_model = 1:length(model_list)
     % all_lfp = zeros(n_trials_total, N, T/fs_rate*fs_ds); % trials x neurons x time
     all_trial_labels = zeros(n_trials_total,2);
     all_trial_perfs = zeros(n_trials_total,1);
+    all_trial_shifts = unifrnd(0,phasecycleshift,n_trials_total,1); % how much to shift each trial phase
+    all_trial_shift_steps = ceil(all_trial_shifts / input_freq * fs_rate);
     
     for ii = stim1s
         wave = sin(2*pi*input_freq/fs_rate*(1:T));
         wave = wave * ii; % flip based on stim1
-        lfp_input = zeros(1,T+1); % python code: 2 * np.pi * f / fs * time[period[0]:period[1]]
-        % lfp_input(stim_on+stim_dur:stim_on+stim_dur+delay) = wave(stim_on+stim_dur:stim_on+stim_dur+delay);
-        lfp_input(stim_on+stim_dur:stim_on+stim_dur+delay) = wave(1:delay+1);
+        
         for jj = stim2s
             [u, label] = generate_specific_input_stim_xor(T, ii, jj, stim_on, stim_dur, delay);
             this_spk_times(n_trials_per_condn) = struct();
@@ -161,6 +165,13 @@ for n_model = 1:length(model_list)
             this_rates = zeros(n_trials_per_condn, N, T/fs_rate*fs_ds);
             this_trial_perfs = zeros(n_trials_per_condn,1);
             parfor n_trial=1:n_trials_per_condn
+                wave_noise = normrnd(0, 1, size(wave,1), size(wave,2)); % create gaussian noise, mean 0 std 0.5
+                this_wave = wave + wave_noise;
+                lfp_input = zeros(1,T+1); % python code: 2 * np.pi * f / fs * time[period[0]:period[1]]
+                % lfp_input(stim_on+stim_dur:stim_on+stim_dur+delay) = this_wave(stim_on+stim_dur:stim_on+stim_dur+delay);
+                % lfp_input(stim_on+stim_dur:stim_on+stim_dur+delay) = this_wave(1:delay+1);
+                lfp_input(stim_on+stim_dur:stim_on+stim_dur+delay) = this_wave(all_trial_shift_steps(n_trial):all_trial_shift_steps(n_trial) + delay);
+
                 [~, ~, spk_train, rates, ~, outputs, params] = LIF_network_fnc(model_path, scaling_factor,...
                     u, stims, lfp_input, down_sample, use_initial_weights);
                 
@@ -210,7 +221,7 @@ for n_model = 1:length(model_list)
     % save the data
     save(neural_save_name, '-append', 'all_spk_times', '-v7.3')
     % save(neural_save_name, 'all_spk_times','all_lfp','-v7.3') % neural
-    save(bhv_save_name, 'all_trial_labels','all_trial_perfs') % behavioral
+    save(bhv_save_name, 'all_trial_labels','all_trial_perfs', 'all_trial_shifts') % behavioral
     save(timing_save_name, 'stim_on','stim_dur','delay','T','fs_spk','fs_rate','fs_ds') % timing
 
 

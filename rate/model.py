@@ -481,9 +481,10 @@ def generate_LFP_input_phase(settings, u):
     
     if settings['power_target_period'] == 'full':
         period = [0, T] # entire trial duration
+        time = np.arange(0, T, dtype=np.float32)
     elif settings['power_target_period'] == 'delay':
         period = [stim_on+stim_dur, stim_on+stim_dur+delay] # maintenance period
-    time = np.arange(0, T, dtype=np.float32)
+        time = np.arange(0, period[1] - period[0], dtype=np.float32)
 
     # Initialize the signal
     lfp_input = np.zeros((1, T), dtype=np.float32)
@@ -492,11 +493,11 @@ def generate_LFP_input_phase(settings, u):
     # Generate the LFP signal
     if len(target_freq) > 1:
         for f in target_freq:
-            wave = np.sin(2 * np.pi * f / fs * time[period[0]:period[1]] * DeltaT)
+            wave = np.sin(2 * np.pi * f / fs * time * DeltaT)
             lfp_input[0, period[0]:period[1]] += wave / len(target_freq)
     else:
         f = target_freq[0]
-        wave = np.sin(2 * np.pi * f / fs * time[period[0]:period[1]] * DeltaT)
+        wave = np.sin(2 * np.pi * f / fs * time * DeltaT)
         lfp_input[0, period[0]:period[1]] = wave
     
     lfp_input = lfp_input * stim1 # different phases for +1 or -1 first stim

@@ -114,7 +114,44 @@ def compute_lfp_power(epsps, fs, freq_range = [4, 100], num_freqs = 40, n_cycles
 
     return np.array(power), freqs, np.array(phase)
 
-def plot_trial_bandpower(lfp_data, trial_id, condn_phrase, condn_num, 
-                            ax=None, 
+def plot_bandpower_bootstrap(model_name, bands1, bands2, condn_phrase, condn_num='', 
+                            nboot=1000, CI_int=(2.5, 97.5), random_seed=820,
+                            ax=None, title=None, colors = ['green', 'red'],
                             all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'):
-    return 0
+    """
+    bands1 is trials x time (e.g. correct trials)
+    bands2 is trials x time (e.g. incorrect trials)
+    
+    """
+
+    
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(6,4))
+    
+    times_fs, times_real, fs_dict = ld.get_times_dict('ds', condn_phrase, condn_num, 
+                   model_name=model_name, all_models_dir=all_models_dir)
+    trial_labels, trial_perfs = ld.load_bhv_data(model_name, condn_phrase, condn_num, all_models_dir=all_models_dir)
+    
+    t1_avg, t1_CI, t2_avg, t2_CI, _, _, p_diff = fnc_time_bootstrap_optimized_retX(bands1, bands2,
+                                                            nboot, CI_int, random_seed=random_seed)
+    ax.plot(t1_avg.mean(axis=1), label=f'Correct trials, prev_n={bands1.shape[0]}', color=colors[0])
+    ax.fill_between(np.arange(bands1.shape[1]), 
+                    t1_CI[:,0], t1_CI[:,1], alpha=0.3, color=colors[0])
+    ax.plot(t2_avg.mean(axis=1), label=f'Incorrect trials, prev_n={bands2.shape[0]}', color=colors[1])
+    ax.fill_between(np.arange(bands2.shape[1]), 
+                        t2_CI[:,0], t2_CI[:,1], alpha=0.3, color=colors[1])
+    ax.scatter(np.where(p_diff < 0.05)[0], np.ones(np.sum(p_diff < 0.05))*np.max(t1_avg)*1.1, 
+               marker='s', s=10, color='black', label='p<0.05')
+    ax.axvspan(times_fs['stim1_on'], times_fs['stim1_off'], color='gray', alpha=0.3)
+    ax.axvspan(times_fs['stim2_on'], times_fs['stim2_off'], color='gray', alpha=0.3)
+    if title is not None:
+        ax.set_title(title)
+    else:
+        ax.set_title(f'Model {model_name[-6:]}, perf: {np.mean(trial_perfs):.2f}')
+    ax.set_xlabel('Time (ms)')
+    ax.set_ylabel('Band power')
+    # ax.legend()
+    
+    return ax, np.mean(t1_avg, axis=1), np.mean(t2_avg, axis=1), t1_CI, t2_CI, p_diff
+    
+    
