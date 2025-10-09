@@ -19,7 +19,7 @@ clear; clc
 
 normalize_ipscs = 0;
 lesion_connections = 0; % if not lesioning put 0, else 'ii' etc
-delay = 50; % 150 is the standard "testing" delay duration
+delay = 400; % 150 is the standard "testing" delay duration
 n_trials_per_condn = 250;
 
 
@@ -46,7 +46,8 @@ addpath('/home/nuttidalab/Documents/renee/spikeRNN/spiking/')
 % all_model_path = '/home/nuttidalab/Documents/renee/all_DMS_models/';
 all_model_path = '/home/nuttidalab/Documents/renee/jitter_models/models/xor/P_rec_0.2_Taus_4.0_25.0/'
 cd(all_model_path)
-model_list = dir('*.mat');
+% model_list = dir('*.mat');
+model_list = dir('*Jitter_10_10*.mat');
 
 
 %% Timing info for the trials we want to generate
@@ -58,10 +59,10 @@ fs_spk = 20000;
 fs_ds = 1000; % downsample frequency for LFP data
 
 % Time settings
-stim_on = 31;
+stim_on = 51;
 stim_dur = 50;
 % delay was defined earlier
-T = 261 + delay;
+T = 251 + delay;
 
 stim1_onset = (stim_on) / fs_rate * fs_spk;
 stim1_offset = (stim_on + stim_dur) / fs_rate * fs_spk;
@@ -120,7 +121,7 @@ for n_model = 1:length(model_list)
     timing_save_name = [this_model_dir,'/','timingdata',norm_name,lesion_name,'_delay',num2str(delay),'.mat'];
 
     % check if there is data calculated already
-    if exist(neural_save_name, 'file') > 0
+    if exist(bhv_save_name, 'file') > 0
         disp('already calculated, moving to next model...')
         continue
     end

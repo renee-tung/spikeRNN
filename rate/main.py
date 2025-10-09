@@ -397,13 +397,20 @@ if args.mode.lower() == 'train':
         var['taus_gaus'] = t_taus_gaus
         var['tr'] = tr
         var['activation'] = training_params['activation']
+        var['stim_on_tr'] = settings['stim_on']
+        var['stim_dur_tr'] = settings['stim_dur']
+        if args.task.lower() == 'xor':
+            var['delay_tr'] = settings['delay']
+        var['T_tr'] = settings['T']
         fname_time = datetime.datetime.now().strftime("%Y_%m_%d_%H%M%S")
-        if len(settings['taus']) > 1:
-            fname = 'Task_{}_N_{}_Taus_{}_{}_Act_{}_{}.mat'.format(args.task.lower(), N, settings['taus'][0], 
-                    settings['taus'][1], training_params['activation'], fname_time)
-        elif len(settings['taus']) == 1:
-            fname = 'Task_{}_N_{}_Tau_{}_Act_{}_{}.mat'.format(args.task.lower(), N, settings['taus'][0], 
-                    training_params['activation'], fname_time)
+        # if len(settings['taus']) > 1:
+        #     fname = 'Task_{}_N_{}_Taus_{}_{}_Act_{}_{}.mat'.format(args.task.lower(), N, settings['taus'][0], 
+        #             settings['taus'][1], training_params['activation'], fname_time)
+        # elif len(settings['taus']) == 1:
+        #     fname = 'Task_{}_N_{}_Tau_{}_Act_{}_{}.mat'.format(args.task.lower(), N, settings['taus'][0], 
+        #             training_params['activation'], fname_time)
+        fname = 'Task_{}_N_{}_Jitter_{}_{}_{}.mat'.format(args.task.lower(), N, args.jitter_onset, args.jitter_delay,
+                    fname_time)
         scipy.io.savemat(os.path.join(out_dir, fname), var)
 
 
