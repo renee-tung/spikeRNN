@@ -29,7 +29,7 @@ clear; clc;
 % model_dir = '/home/nuttidalab/Documents/spikeRNN/models/xor/P_rec_0.2_Taus_4.0_25.0'; 
 model_dir = '/home/nuttidalab/Documents/renee/jitter_models/models/xor/P_rec_0.2_Taus_4.0_25.0/';
 
-mat_files = dir(fullfile(model_dir, '*.mat'));
+mat_files = dir(fullfile(model_dir, '*Jitter_10_10*.mat'));
 
 % Whether to use the initial random connectivity weights
 % This should be set to false unless you want to compare
@@ -215,10 +215,10 @@ for i = 1:length(mat_files)
 
         % Stim 2
         if rand >= 0.50
-          u(2, 111:160) = 1;
+          u(2, 151:200) = 1;
           u_lab(2) = 1;
         else
-          u(2, 111:160) = -1;
+          u(2, 151:200) = -1;
           u_lab(2) = -1;
         end
         label = prod(u_lab);
