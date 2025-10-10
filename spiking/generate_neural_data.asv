@@ -116,8 +116,6 @@ for n_model = 1:length(model_list)
 
     if max(all_perfs) < 0.95
         disp('max perf too low, moving to next model...')
-        continue
-    end
 
     % make directory for this model if one doesn't exist
     if ~exist(model_name, 'dir')
