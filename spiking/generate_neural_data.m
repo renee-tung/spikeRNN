@@ -19,7 +19,7 @@ clear; clc
 
 normalize_ipscs = 0;
 lesion_connections = 0; % if not lesioning put 0, else 'ii' etc
-delay = 800; % 150 is the standard "testing" delay duration
+delay = 1200; % 150 is the standard "testing" delay duration
 n_trials_per_condn = 50;
 
 
@@ -207,6 +207,8 @@ for n_model = 1:length(model_list)
     % save(neural_save_name, 'all_spk_times','all_lfp','-v7.3') % neural
     save(bhv_save_name, 'all_trial_labels','all_trial_perfs') % behavioral
     save(timing_save_name, 'stim_on','stim_dur','delay','T','fs_spk','fs_rate','fs_ds') % timing
+
+    disp(mean(all_trial_perfs))
 
 
     % clear the variables
