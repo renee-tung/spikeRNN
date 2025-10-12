@@ -19,7 +19,7 @@ clear; clc
 
 normalize_ipscs = 0;
 lesion_connections = 0; % if not lesioning put 0, else 'ii' etc
-delay = 800; % 150 is the standard "testing" delay duration
+delay = 400; % 150 is the standard "testing" delay duration
 n_trials_per_condn = 50;
 
 
@@ -152,6 +152,7 @@ for n_model = 1:length(model_list)
     % all_lfp = zeros(n_trials_total, N, T/fs_rate*fs_ds); % trials x neurons x time
     all_trial_labels = zeros(n_trials_total,2);
     all_trial_perfs = zeros(n_trials_total,1);
+    all_trial_outputs = zeros(n_trials_total, T/fs_rate*fs_ds); % trials x time
     
     for ii = stim1s
         wave = sin(2*pi*input_freq/fs_rate*(1:T));
@@ -165,6 +166,7 @@ for n_model = 1:length(model_list)
             this_lfp = zeros(n_trials_per_condn, N, T/fs_rate*fs_ds);
             this_rates = zeros(n_trials_per_condn, N, T/fs_rate*fs_ds);
             this_trial_perfs = zeros(n_trials_per_condn,1);
+            this_trial_outs = zeros(n_trials_per_condn, T/fs_rate*fs_ds);
             parfor n_trial=1:n_trials_per_condn
                 [~, ~, spk_train, rates, ~, outputs, params] = LIF_network_fnc(model_path, scaling_factor,...
                     u, stims, lfp_input, down_sample, use_initial_weights);
@@ -182,16 +184,16 @@ for n_model = 1:length(model_list)
                 % get performance on this trial
                 trial_perf = 0;
                 if label == "same" % Check model performance
-                    if max(outputs(stim2_offset:end)) > eval_amp_threshold
+                    if max(outputs(stim2_offset:end)) > eval_amp_threshold && min(outputs(stim2_offset:end)) > -eval_amp_threshold
                         trial_perf = 1;
                     end
                 else
-                    if min(outputs(stim2_offset:end)) < -eval_amp_threshold
+                    if min(outputs(stim2_offset:end)) < -eval_amp_threshold && max(outputs(stim2_offset:end)) < eval_amp_threshold
                         trial_perf = 1;
                     end
                 end
                 this_trial_perfs(n_trial) = trial_perf;
-
+                this_trial_outs(n_trial) = outputs;
             end
 
             % store data in the larger "all" variables
