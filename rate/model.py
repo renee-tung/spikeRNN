@@ -654,10 +654,16 @@ def eval_tf(model_dir, settings, u, lesion='', calc_epsp=False):
                 + np.matmul(var['w_in'], np.expand_dims(u[:, t-1], 1)))) +\
                 np.random.randn(N, 1)/10
         
+        # if calc_epsp == True:
+        #     next_epsp = np.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[:, t-1], 1)) + \
+        #             np.multiply((DeltaT/taus_sig), ((np.matmul(ww[:,exc_ind], np.expand_dims(r[exc_ind, t-1], 1))))) 
+        #     epsp[:, t] = np.squeeze(next_epsp)
+            
         if calc_epsp == True:
-            next_epsp = np.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[:, t-1], 1)) + \
+            next_epsp = np.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[:,t-1], 1)) + \
                     np.multiply((DeltaT/taus_sig), ((np.matmul(ww[:,exc_ind], np.expand_dims(r[exc_ind, t-1], 1))))) 
-            epsp[:, t] = np.squeeze(next_epsp)
+            next_epsp = np.mean(next_epsp)  # average over all neurons
+            epsp[t] = next_epsp
             
         x[:, t] = np.squeeze(next_x)
         r[:, t] = 1/(1 + np.exp(-x[:, t]))
