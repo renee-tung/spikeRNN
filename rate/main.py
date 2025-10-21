@@ -432,7 +432,10 @@ if args.mode.lower() == 'train':
         var['taus_gaus'] = t_taus_gaus
         var['jitter_onset'] = args.jitter_onset
         var['jitter_delay'] = args.jitter_delay
-        var['train_settings'] = settings
+        var['stim_on_tr'] = settings['stim_on']
+        var['stim_dur_tr'] = settings['stim_dur']
+        var['delay_tr'] = settings['delay']
+        var['T_tr'] = settings['T']
         var['tr'] = tr
         var['activation'] = training_params['activation']
         fname_time = datetime.datetime.now().strftime("%Y_%m_%d_%H%M%S")

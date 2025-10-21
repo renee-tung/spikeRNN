@@ -114,6 +114,43 @@ def compute_lfp_power(epsps, fs, freq_range = [4, 100], num_freqs = 40, n_cycles
 
     return np.array(power), freqs, np.array(phase)
 
+
+def compute_bandpower(power, freqs, settings, band=[4], zscore=True, baseline=[10, 50]):
+    """
+    Compute average power in a specified frequency band.
+    
+    Parameters:
+    power : array
+        Power values (shape: trials, n_freqs, n_times).
+    settings : dict
+        Dictionary containing settings such as 'fs' (sampling rate).
+    band : list
+        Frequency band to compute power for.
+    """
+    fs = settings['fs']
+    num_freqs = power.shape[1]
+    
+    # find indices of frequencies within the band
+    if len(band) == 1:
+        band_indices = np.where((freqs >= band[0]-0.5) & (freqs <= band[0]+0.5))[0]
+    elif len(band) == 2:
+        band_indices = np.where((freqs >= band[0]) & (freqs <= band[1]))[0]
+    else:
+        raise ValueError("Band must be a list of one or two elements.")
+    
+    # average power over the band frequencies
+    band_power = np.mean(power[:, band_indices, :], axis=1)  # shape: (n_trials, n_times)
+    
+    if zscore:
+        # z-score normalization using baseline period
+        baseline_indices = np.where((np.arange(power.shape[2]) >= baseline[0]) & (np.arange(power.shape[2]) <= baseline[1]))[0]
+        baseline_mean = np.mean(band_power[:, baseline_indices], axis=1, keepdims=True)
+        baseline_std = np.std(band_power[:, baseline_indices], axis=1, keepdims=True)
+        band_power = (band_power - baseline_mean) / baseline_std
+    
+    return band_power  # shape: (n_trials, n_times)
+
+
 def plot_bandpower_bootstrap(model_name, bands1, bands2, condn_phrase, condn_num='', 
                             nboot=1000, CI_int=(2.5, 97.5), random_seed=820,
                             ax=None, title=None, colors = ['green', 'red'],
