@@ -122,7 +122,7 @@ elif args.task.lower() == 'xor':
             'stim_on': 50, # input stim onset (in steps)
             'stim_dur': 50, # input stim duration (in steps)
             # 'delay': 15, # delay b/w the two stimuli (in steps)
-            'delay': 50, 
+            'delay': 10, 
             'DeltaT': 1, # sampling rated
             'taus': args.decay_taus, # decay time-constants (in steps)
             'task': args.task.lower(), # task name

@@ -3,13 +3,13 @@ clear; clc;
 % Directory containing all the trained rate RNN model .mat files
 % model_dir = '/home/nuttidalab/Documents/spikeRNN/models/xor/P_rec_0.2_Taus_4.0_25.0'; 
 
-model_dir = '/home/nuttidalab/Documents/renee/jitter_models/models/xor/P_rec_0.2_Taus_4.0_25.0/';
-cd(model_dir)
-mat_files = dir('*Jitter_10_2*.mat');
-
-% model_dir = '/home/nuttidalab/Documents/renee/all_DMS_models/';
+% model_dir = '/home/nuttidalab/Documents/renee/jitter_models/models/xor/P_rec_0.2_Taus_4.0_25.0/';
 % cd(model_dir)
-% mat_files = dir(fullfile(model_dir, '*.mat'));
+% mat_files = dir('*Jitter_0_0*.mat');
+
+model_dir = '/home/nuttidalab/Documents/renee/all_DMS_models/';
+cd(model_dir)
+mat_files = dir(fullfile(model_dir, '*.mat'));
 
 stim_on = 51;
 stim_dur = 50;
@@ -37,7 +37,7 @@ for i = 1:length(mat_files)
   curr_full = fullfile(mat_files(i).folder, curr_fname);
   disp(['Analyzing ' curr_fname]);
 
-  if i == 7
+  if i == 9
       break
   end
 
@@ -68,7 +68,8 @@ for i = 1:length(mat_files)
       trials = zeros(n_trials, 1);
       perfs = zeros(n_trials, 1);
       
-      
+
+      figure; hold on
       parfor j = 1:n_trials
         u = zeros(2, T+1);
         u_lab = zeros(1, 2);
@@ -102,26 +103,17 @@ for i = 1:length(mat_files)
           if max(out(stim2_offset:end)) > 0.7
             perfs(j) = 1;
           end
+          plot(out, 'Color', 'r')
         elseif label == -1
           if min(out(stim2_offset:end)) < -0.7
             perfs(j) = 1;
           end
+          
         end
       end % parfor end
-
-      figure; hold on;
-      for j = 1:n_trials
-          if trials(j) == 1
-              plot(outs(j,:), 'r');
-          else
-              plot(outs(j,:), 'b');
-          end
-      end
-      title([mat_files(i).name(1:end-4), ' perf ', num2str(mean(perfs))]);
-      xline(stim1_onset)
-      xline(stim1_offset)
-      xline(stim2_onset)
-      xline(stim2_offset)
+      
+      title([mat_files(i).name(1:end-4), ' perf ',num2str(mean(perfs))])
+      
 
   end
 end

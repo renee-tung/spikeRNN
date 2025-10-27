@@ -27,9 +27,12 @@ clear; clc;
 
 % Directory containing all the trained rate RNN model .mat files
 % model_dir = '/home/nuttidalab/Documents/spikeRNN/models/xor/P_rec_0.2_Taus_4.0_25.0'; 
-model_dir = '/home/nuttidalab/Documents/renee/jitter_models/models/xor/P_rec_0.2_Taus_4.0_25.0/';
 
-mat_files = dir(fullfile(model_dir, '*Jitter_10_10*.mat'));
+model_dir = '/home/nuttidalab/Documents/renee/jitter_models/models/xor/P_rec_0.2_Taus_4.0_25.0/';
+mat_files = dir(fullfile(model_dir, '*Jitter_10_2*.mat'));
+
+% model_dir = '/home/nuttidalab/Documents/renee/all_DMS_models/';
+% mat_files = dir(fullfile(model_dir, '*.mat'));
 
 % Whether to use the initial random connectivity weights
 % This should be set to false unless you want to compare
@@ -47,7 +50,7 @@ scaling_factors = [20:5:75];
 for i = 1:length(mat_files)
   curr_fname = mat_files(i).name;
   curr_full = fullfile(mat_files(i).folder, curr_fname);
-  disp(['Analyzing ' curr_fname]);
+  disp(['Analyzing ' curr_fname])
 
   % Get the task name
   if ~isempty(findstr(curr_full, 'go-nogo'))
@@ -60,6 +63,7 @@ for i = 1:length(mat_files)
 
   % Load the model
   load(curr_full);
+  disp(eval_perf_mean)
 
   % Skip if the file was run before
   if exist('opt_scaling_factor')
@@ -215,10 +219,12 @@ for i = 1:length(mat_files)
 
         % Stim 2
         if rand >= 0.50
-          u(2, 151:200) = 1;
+          % u(2, 151:200) = 1;
+          u(2, 111:161) = 1;
           u_lab(2) = 1;
         else
-          u(2, 151:200) = -1;
+          % u(2, 151:200) = -1;
+          u(2, 111:161) = -1;
           u_lab(2) = -1;
         end
         label = prod(u_lab);
@@ -230,11 +236,13 @@ for i = 1:length(mat_files)
             u, stims, down_sample, use_initial_weights);
         outs(j, :) = out;
         if label == 1
-          if max(out(20000:end)) > 0.7
+          % if max(out(20000:end)) > 0.7
+          if max(out(16100:end)) > 0.7
             perfs(j) = 1;
           end
         elseif label == -1
-          if min(out(20000:end)) < -0.7
+          % if min(out(20000:end)) < -0.7
+          if min(out(16100:end)) < -0.7
             perfs(j) = 1;
           end
         end
