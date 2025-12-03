@@ -15,14 +15,15 @@
 
 clear; clc
 
-input_to = 'inh';
+% input_to = 'inh';
+input_to = 'exc';
 
 
 %% some params for this data
 
 normalize_ipscs = 0;
 lesion_connections = 0; % if not lesioning put 0, else 'ii' etc
-delay = 800; % 150 is the standard "testing" delay duration
+delay = 400; % 150 is the standard "testing" delay duration
 n_trials_per_condn = 50;
 
 

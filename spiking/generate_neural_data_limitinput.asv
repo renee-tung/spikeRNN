@@ -15,11 +15,15 @@
 
 clear; clc
 
+input_to = 'inh';
+input_to = 'e'
+
+
 %% some params for this data
 
 normalize_ipscs = 0;
 lesion_connections = 0; % if not lesioning put 0, else 'ii' etc
-delay = 800; % 150 is the standard "testing" delay duration
+delay = 400; % 150 is the standard "testing" delay duration
 n_trials_per_condn = 50;
 
 
@@ -116,6 +120,8 @@ for n_model = 1:length(model_list)
 
     if max(all_perfs) < 0.95
         disp('max perf too low, moving to next model...')
+        continue
+    end
 
     % make directory for this model if one doesn't exist
     if ~exist(model_name, 'dir')
@@ -125,9 +131,9 @@ for n_model = 1:length(model_list)
     this_model_dir = fullfile(all_model_path,model_name);
 
     % save name for the output
-    neural_save_name = [this_model_dir,'/','neuraldata',norm_name,lesion_name,'_delay',num2str(delay),'.mat'];
-    bhv_save_name = [this_model_dir,'/','bhvdata',norm_name,lesion_name,'_delay',num2str(delay),'.mat'];
-    timing_save_name = [this_model_dir,'/','timingdata',norm_name,lesion_name,'_delay',num2str(delay),'.mat'];
+    neural_save_name = [this_model_dir,'/','neuraldata',norm_name,lesion_name,'_delay',num2str(delay),input_to,'only','.mat'];
+    bhv_save_name = [this_model_dir,'/','bhvdata',norm_name,lesion_name,'_delay',num2str(delay),input_to,'only','.mat'];
+    timing_save_name = [this_model_dir,'/','timingdata',norm_name,lesion_name,'_delay',num2str(delay),input_to,'only','.mat'];
 
     % check if there is data calculated already
     if exist(bhv_save_name, 'file') > 0
@@ -164,8 +170,8 @@ for n_model = 1:length(model_list)
             this_rates = zeros(n_trials_per_condn, N, T/fs_rate*fs_ds);
             this_trial_perfs = zeros(n_trials_per_condn,1);
             parfor n_trial=1:n_trials_per_condn
-                [~, ~, spk_train, rates, ~, outputs, params] = LIF_network_fnc(model_path, scaling_factor,...
-                    u, stims, lfp_input, down_sample, use_initial_weights);
+                [~, ~, spk_train, rates, ~, outputs, params] = LIF_network_fnc_limitinput(model_path, scaling_factor,...
+                    u, stims, lfp_input, down_sample, use_initial_weights, input_to);
                 
                 % get spike times, convert to 0-indexing, and store
                 spk_times = arrayfun(@(i) find(spk_train(i,:) ~= 0)-1, (1:size(spk_train,1))', 'UniformOutput', false);

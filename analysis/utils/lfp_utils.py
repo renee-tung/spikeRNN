@@ -127,8 +127,8 @@ def compute_bandpower(power, freqs, settings, band=[4], zscore=True, baseline=[1
     band : list
         Frequency band to compute power for.
     """
-    fs = settings['fs']
-    num_freqs = power.shape[1]
+    # fs = settings['fs']
+    # num_freqs = power.shape[1]
     
     # find indices of frequencies within the band
     if len(band) == 1:

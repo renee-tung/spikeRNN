@@ -22,7 +22,7 @@ gaussian_std = 1;
 normalize_ipscs = 0;
 lesion_connections = 0; % if not lesioning put 0, else 'ii' etc
 delay = 400; % 150 is the standard "testing" delay duration
-n_trials_per_condn = 250;
+n_trials_per_condn = 50;
 
 
 if normalize_ipscs
@@ -60,6 +60,7 @@ eval_amp_threshold = 0.7;
 fs_rate = 200;
 fs_spk = 20000;
 fs_ds = 1000; % downsample frequency for LFP data
+fs_out = 100;
 
 % Time settings
 stim_on = 51;
@@ -115,7 +116,13 @@ for n_model = 1:length(model_list)
     split2 = strsplit(split1{1}, '_');
     input_freq = str2num(split2{end});
 
-    disp([num2str(input_freq), 'Hz model, mean stable performance ', num2str(mean(all_perfs))])
+    disp([num2str(input_freq), 'Hz model, max stable performance ', num2str(max(all_perfs))])
+
+    if max(all_perfs) < 0.95
+        disp('max perf too low, moving to next model...')
+        continue
+    end
+
 
     % make directory for this model if one doesn't exist
     if ~exist(model_name, 'dir')
@@ -130,10 +137,10 @@ for n_model = 1:length(model_list)
     timing_save_name = [this_model_dir,'/','timingdata',norm_name,lesion_name,'_delay',num2str(delay),'noisegaussian', num2str(gaussian_std), '.mat'];
 
     % check if there is data calculated already
-    % if exist(bhv_save_name, 'file') > 0
-    %     disp('already calculated, moving to next model...')
-    %     continue
-    % end
+    if exist(bhv_save_name, 'file') > 0
+        disp('already calculated, moving to next model...')
+        continue
+    end
 
     % get scaling param for this model
     scaling_factor = opt_scaling_factor;
@@ -148,6 +155,7 @@ for n_model = 1:length(model_list)
     matObj.all_lfp = zeros(n_trials_total, N, T/fs_rate*fs_ds); % trials x neurons x time
     % all_rates = zeros(n_trials_total, N, T/fs_rate*fs_ds); % trials x neurons x time
     % all_lfp = zeros(n_trials_total, N, T/fs_rate*fs_ds); % trials x neurons x time
+    all_trial_outputs = zeros(n_trials_total, ceil(T/fs_rate*fs_out));
     all_trial_labels = zeros(n_trials_total,2);
     all_trial_perfs = zeros(n_trials_total,1);
     
@@ -161,6 +169,7 @@ for n_model = 1:length(model_list)
             this_lfp = zeros(n_trials_per_condn, N, T/fs_rate*fs_ds);
             this_rates = zeros(n_trials_per_condn, N, T/fs_rate*fs_ds);
             this_trial_perfs = zeros(n_trials_per_condn,1);
+            this_out = zeros(n_trials_per_condn, ceil(T/fs_rate*fs_out));
             parfor n_trial=1:n_trials_per_condn
 
                 wave_noise = normrnd(0, gaussian_std, size(wave,1), size(wave,2)); % create gaussian noise, mean 0 std 0.5
@@ -181,6 +190,9 @@ for n_model = 1:length(model_list)
 
                 % get LFP, downsample, and store
                 this_lfp(n_trial,:,:) = downsample_signal(fs_spk, fs_ds, params.IPSCs);
+
+                % get output, downsample, and store
+                this_out(n_trial,:) = downsample_signal(fs_spk, fs_out, outputs);
                 
                 % get performance on this trial
                 trial_perf = 0;
@@ -205,10 +217,12 @@ for n_model = 1:length(model_list)
             matObj.all_lfp(start_idx:end_idx,:,:) = single(this_lfp);
             % all_rates(start_idx:end_idx,:,:) = this_rates;
             % all_lfp(start_idx:end_idx,:,:) = this_lfp;
+            all_trial_outputs(start_idx:end_idx,:) = single(this_out);
             all_trial_labels(counter*n_trials_per_condn+1:counter*n_trials_per_condn+n_trials_per_condn,:) = repmat([ii,jj],n_trials_per_condn,1);
             all_trial_perfs(start_idx:end_idx) = this_trial_perfs;
 
-            clear this_spk_times this_rates this_lfp this_trial_perfs params
+
+            clear this_spk_times this_rates this_lfp this_out this_trial_perfs params
 
             counter = counter + 1;
             
@@ -218,12 +232,12 @@ for n_model = 1:length(model_list)
     % save the data
     save(neural_save_name, '-append', 'all_spk_times', '-v7.3')
     % save(neural_save_name, 'all_spk_times','all_lfp','-v7.3') % neural
-    save(bhv_save_name, 'all_trial_labels','all_trial_perfs') % behavioral
+    save(bhv_save_name, 'all_trial_labels','all_trial_perfs', 'all_trial_outputs') % behavioral
     save(timing_save_name, 'stim_on','stim_dur','delay','T','fs_spk','fs_rate','fs_ds') % timing
 
 
     % clear the variables
-    clear all_spk_times all_lfp all_trial_labels all_trial_perfs
+    clear all_spk_times all_lfp all_trial_labels all_trial_perfs all_trial_outputs
 
 
 
