@@ -7,10 +7,11 @@ clear; clc;
 
 % Directory containing all the trained rate RNN model .mat files
 % model_dir = '/home/nuttidalab/Documents/renee/all_DMS_models'; 
-model_dir = '/home/nuttidalab/Documents/renee/jitter_models/models/xor/P_rec_0.2_Taus_4.0_25.0/';
+% model_dir = '/home/nuttidalab/Documents/renee/jitter_models/models/xor/P_rec_0.2_Taus_4.0_25.0/';
+model_dir = '/home/nuttidalab/Documents/renee/sternberg';
 
 % mat_files = dir(fullfile(model_dir, '*.mat'));
-mat_files = dir(fullfile(model_dir, '*Jitter_10_10*.mat'));
+mat_files = dir(fullfile(model_dir, '*.mat'));
 
 
 % Whether to use the initial random connectivity weights
@@ -39,6 +40,8 @@ for i = 1:length(mat_files)
     task_name = 'mante';
   elseif ~isempty(findstr(curr_full, 'xor'))
     task_name = 'xor';
+  elseif ~isempty(findstr(curr_full, 'sternberg'))
+      task_name = 'sternberg';
   end
 
   % Load the model
@@ -46,13 +49,13 @@ for i = 1:length(mat_files)
 
   disp(['prev opt_scaling_factor: ', num2str(opt_scaling_factor), ', perf: ', num2str(max(all_perfs))])
   % Skip if the file was run before
-  % if exist('opt_scaling_factor_new') && ~isnan(opt_scaling_factor_new)
-  %   clearvars -except model_dir mat_files n_trials scaling_factors use_initial_weights input_freq
-  %   continue;
-  % else
-  %   opt_scaling_factor_new = NaN;
-  %   save(curr_full, 'opt_scaling_factor_new', '-append');
-  % end
+  if exist('opt_scaling_factor_new') && ~isnan(opt_scaling_factor_new)
+    clearvars -except model_dir mat_files n_trials scaling_factors use_initial_weights input_freq
+    continue;
+  else
+    opt_scaling_factor_new = NaN;
+    save(curr_full, 'opt_scaling_factor_new', '-append');
+  end
 
   figure;
   % Go-NoGo task
@@ -171,15 +174,10 @@ for i = 1:length(mat_files)
 
     sgtitle([curr_fname(end-10:end-4), ', perf ', num2str(v), ', lambda ', ...
        num2str(scaling_factors(ind))])
-
-    % sgtitle([curr_fname, ', perf ', num2str(v), ', optimal scaling factor ', ...
-    %     'old: ', num2str(opt_scaling_factor), ', new: ', num2str(scaling_factors(ind))])
-
+    
     % Save the optimal scaling factor
     opt_scaling_factor_new = scaling_factors(ind);
-    if i==3
-        break
-    end
+
     % save(curr_full, 'opt_scaling_factor_new', 'all_perfs_new', '-append');
     clearvars -except model_dir mat_files n_trials scaling_factors use_initial_weights input_freq
   end

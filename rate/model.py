@@ -309,6 +309,62 @@ def generate_input_stim_mante(settings):
 
     return np.vstack((u, c)), label
 
+def generate_input_stim_sternberg(settings):
+    """
+    Method to generate the input stimulus matrix for the
+    sternberg task.
+    
+    4 channels: all could be activated, but only 1 or 3 are activated per trial (depending on load)
+    match/mismatch 50/50:
+    if match, then probe is the same as one of the activated channels; 
+    if mismatch, then probe is different from all of the activated channels
+
+    INPUT
+        settings: dict containing the following keys
+            T: duration of a single trial (in steps)
+            stim_on: stimulus starting time (in steps)
+            stim_dur: stimulus duration (in steps)
+            taus: time-constants (in steps)
+            DeltaT: sampling rate
+            load: 1 or 3 items
+    OUTPUT
+        u: 4xT stimulus matrix
+        label: either +1 or -1
+    """
+    T = settings['T']
+    stim_on = settings['stim_on']
+    stim_dur = settings['stim_dur']
+    delay = settings['delay']
+    load = settings['load'] # int for number of items to remember
+    
+    n_channels = 4
+
+    # Initialize u
+    u = np.zeros((n_channels, T))
+    
+    # Sternberg task
+    stim_chan_idx = np.random.choice(n_channels, load, replace=False)
+    for i, i_chan in enumerate(stim_chan_idx):
+        if i == 0:
+            u[i_chan, stim_on:stim_on+stim_dur] = 1
+            ending_idx = stim_on+stim_dur
+        else: # 0 bc no separation btwn stimuli
+            u[i_chan, ending_idx+0:ending_idx+stim_dur+0] = 1
+            ending_idx = ending_idx+stim_dur+0
+    
+    if np.random.rand() < 0.50:
+        # match, so pick a chan from activated chans
+        match_chan_idx = np.random.choice(stim_chan_idx, 1)[0]
+        u[match_chan_idx, ending_idx+delay:ending_idx+delay+stim_dur] = 1
+        label = 1
+    else:
+        # mismatch, so pick a chan from non-activated chans
+        non_stim_chan_idx = np.setdiff1d(np.arange(n_channels), stim_chan_idx) # the non-activated channel
+        non_match_chan_idx = np.random.choice(non_stim_chan_idx, 1)[0]
+        u[non_match_chan_idx, ending_idx+delay:ending_idx+delay+stim_dur] = 1
+        label = -1
+
+    return u, label
 
 '''
 Task-specific target signals
@@ -402,6 +458,42 @@ def generate_target_continuous_mante(settings, label):
 
     return np.squeeze(z)
 
+def generate_target_continuous_sternberg(settings, label):
+    """
+    Method to generate a continuous target signal (z) 
+    for the sternberg task
+
+    INPUT
+        settings: dict containing the following keys
+            T: duration of a single trial (in steps)
+            stim_on: stimulus starting time (in steps)
+            stim_dur: stimulus duration (in steps)
+            delay: delay before maintenance (in steps)
+            taus: time-constants (in steps)
+            DeltaT: sampling rate
+            load: 1 or 3 items
+        label: 1 or -1
+    OUTPUT
+        z: 1xT target signal
+    """
+    T = settings['T']
+    stim_on = settings['stim_on']
+    stim_dur = settings['stim_dur']
+    delay = settings['delay']
+    load = settings['load']
+    # probe_T = stim_on + stim_dur*load + delay
+    probe_T = stim_on + stim_dur*load + stim_dur + delay # extra stim_dur for probe dur
+
+    z = np.zeros((1, T))
+    if label == 1:
+        # z[0, 10+probe_T:] = 1 # add 10 to probe_T 
+        z[0, probe_T:] = 1 # don't add 10 to probe_T 
+    elif label == -1:
+        # z[0, 10+probe_T:] = -1
+        z[0, probe_T:] = -1
+
+    return np.squeeze(z)
+
 '''
 CONSTRUCT TF GRAPH FOR TRAINING
 '''
@@ -452,6 +544,10 @@ def construct_tf(fr_rnn, settings, training_params):
     # Go-NoGo task
     elif task == 'go-nogo':
         stim = tf.placeholder(tf.float32, [1, T], name='u')
+        
+    # Sternberg task
+    elif task == 'sternberg':
+        stim = tf.placeholder(tf.float32, [4, T], name='u')
 
     # Target node
     z = tf.placeholder(tf.float32, [T,], name='target')
@@ -570,8 +666,7 @@ def eval_tf(model_dir, settings, u, lesion='', calc_epsp=False):
     INPUT
         model_dir: full path to the saved model .mat file
         stim_params: dictionary containig the following keys
-        u: 12xT stimulus matrix
-            NOTE: There are 12 rows (one per dot pattern): 6 cues and 6 probes.
+        u: 4xT stimulus matrix
     OUTPUT
         o: 1xT output vector
     """

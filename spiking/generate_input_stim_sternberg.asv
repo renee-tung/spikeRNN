@@ -1,0 +1,47 @@
+function [u,label] = generate_input_stim_sternberg(T, stim_on, stim_dur, delay, load, match)
+% generates random stimulus from sternberg
+% set match to 0 if want random
+
+n_chans = 4;
+
+if match == 0
+    if rand() < 0.50
+        match = 1;
+    else
+        match = -1;
+    end
+end
+
+% Sternberg task
+u = zeros(n_chans, T+1); % input stim
+stims = randsample(n_chans, load);
+if match == 1
+    probe = randsample(stims, 1);
+elseif match == -1
+    probe = 
+
+if rand() < 0.50
+    u(1, stim_on:stim_on+stim_dur) = 1;
+    labs(1) = 1;
+else
+    u(1, stim_on:stim_on+stim_dur) = -1;
+    labs(1) = -1;
+end
+
+if rand() < 0.50
+    u(2, stim_on+stim_dur+delay:stim_on+2*stim_dur+delay) = 1;
+    labs(2) = 1;
+else
+    u(2, stim_on+stim_dur+delay:stim_on+2*stim_dur+delay) = -1;
+    labs(2) = -1;
+end
+
+
+if labs(1)*labs(2) == 1
+    label = 'same';
+else
+    label = 'diff';
+end
+
+
+end

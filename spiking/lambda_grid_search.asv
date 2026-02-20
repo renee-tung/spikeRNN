@@ -31,10 +31,7 @@ clear; clc;
 % model_dir = '/home/nuttidalab/Documents/renee/jitter_models/models/xor/P_rec_0.2_Taus_4.0_25.0/';
 % mat_files = dir(fullfile(model_dir, '*Jitter_10_2*.mat'));
 
-% model_dir = '/home/nuttidalab/Documents/renee/sternberg';
-% mat_files = dir(fullfile(model_dir, '*.mat'));
-
-model_dir = '/home/nuttidalab/Documents/renee/sternberg/singleload_1/';
+model_dir = '/home/nuttidalab/Documents/renee/sternberg';
 mat_files = dir(fullfile(model_dir, '*.mat'));
 
 % model_dir = '/home/nuttidalab/Documents/renee/all_DMS_models/';
@@ -71,7 +68,6 @@ for i = 1:length(mat_files)
 
   % Load the model
   load(curr_full);
-  clear load
   disp(eval_perf_mean)
 
   % Skip if the file was run before
@@ -275,34 +271,32 @@ for i = 1:length(mat_files)
     save(curr_full, 'opt_scaling_factor', 'all_perfs', 'scaling_factors', '-append');
     clearvars -except model_dir mat_files n_trials scaling_factors use_initial_weights
   
-  % Sternberg task 
+  % Sternberg task -- NEED TO ADJUST
   elseif strcmpi(task_name, 'sternberg')
     down_sample = 1;
     loads = [1, 3];
-    % loads = [1];
     all_perfs = zeros(length(scaling_factors), 2);
 
-    T = 250;
-    stim_on = 50;
-    stim_dur = 25;
-    delay = 10;
-    match = 0; % random 50% chance in/out
-
     for k = 1:length(scaling_factors)
+      % outs = zeros(n_trials, 25000);
+      % trials = zeros(n_trials, 1);
+      perfs = zeros(n_trials/2, 1);
+
       scaling_factor = scaling_factors(k);
       disp(scaling_factor)
       for i_load = 1:length(loads)
-          wm_load = loads(i_load);
-            
-          % outs = zeros(n_trials/2, 25000);
-          % trials = zeros(n_trials, 1);
-          perfs = zeros(n_trials/2, 1);
+          load = loads(i_load);
 
-          target_eval = int32((double(stim_on) + double(stim_dur)*double(wm_load) + ...
+          T = 250;
+          stim_on = 50;
+          stim_dur = 25;
+          delay = 10;
+          match = 0; % random 50% chance in/out
+          target_eval = int32((double(stim_on) + double(stim_dur)*double(load) + ...
               double(delay) + double(stim_dur) + 10.0) / 200 * 20000);
 
           parfor j = 1:n_trials / 2
-            [u, label] = generate_input_stim_sternberg(T, stim_on, stim_dur, delay, wm_load, match);
+            [u, label] = generate_input_stim_sternberg(T, stim_on, stim_dur, delay, load, match);
     
             % trials(j) = label;
     
@@ -322,17 +316,10 @@ for i = 1:length(mat_files)
             end
           end % parfor end
           all_perfs(k, i_load) = mean(perfs);
-      
-      end % load loop end
+      end
      
     end % scaling end
     [v_low, ind_low] = max(all_perfs(:,1));
-    [v_high, ind_high] = max(all_perfs(:,2));
-    [v_low, scaling_factors(ind_low)]
-    [v_high, scaling_factors(ind_high)]
-
-    all_perfs_mean = mean(all_perfs, 2);
-    [v, ind] = max(all_perfs_mean);
     [v, scaling_factors(ind)]
 
     % Save the optimal scaling factor

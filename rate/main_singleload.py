@@ -74,8 +74,8 @@ parser.add_argument("--som_N", required=True,
         type=int, default = 0, help="Number of SST neurons")
 parser.add_argument("--task", required=True,
         type=str, help="Task (XOR, sine, etc...)")
-# parser.add_argument("--task_load", required=False,
-#                     type=int, default=1, help="Load for Sternberg task")
+parser.add_argument("--task_load", required=False,
+                    type=int, default=1, help="Load for Sternberg task")
 parser.add_argument("--act", required=True,
         type=str, default='sigmoid', help="Activation function (sigmoid, clipped_relu)")
 parser.add_argument("--loss_fn", required=True,
@@ -93,7 +93,7 @@ parser.add_argument("--jitter_delay", required=False,
 args = parser.parse_args()
 
 # Set up the output dir where the output model will be saved
-out_dir = os.path.join(args.output_dir, args.task.lower())
+out_dir = os.path.join(args.output_dir, args.task.lower(), 'singleload_' + str(args.task_load))
 # out_dir = os.path.join(args.output_dir, 'models', args.task.lower())
 # if args.apply_dale == False:
 #     out_dir = os.path.join(out_dir, 'NoDale')
@@ -145,8 +145,9 @@ elif args.task.lower() == 'mante':
             }
 elif args.task.lower() == 'sternberg':
     # Sternberg working memory task
-    # if args.task_load not in [1, 3]:
-    #     raise ValueError('Invalid load for Sternberg task. Must be 1 or 3.')
+    task_load = args.task_load
+    if task_load not in [1, 3]:
+        raise ValueError('Invalid load for Sternberg task. Must be 1 or 3.')
     settings = {
             'T': 250, # trial duration (in steps)
             'stim_on': 50, # input stim onset (in steps)
@@ -155,7 +156,7 @@ elif args.task.lower() == 'sternberg':
             'DeltaT': 1, # sampling rated
             'taus': args.decay_taus, # decay time-constants (in steps)
             'task': args.task.lower(), # task name
-            'load': 1, # initialize with load 1, but will alternate with 3
+            'load': task_load, # initialize with load 1, but will alternate with 3
             }
 
 '''
@@ -255,8 +256,6 @@ if args.mode.lower() == 'train':
                     
         elif args.task.lower() == 'sternberg':
             # Sternberg working memory task, initialize with load 1 in settings
-            p_low = 1 # probability of low-load trials during training; set to 1 to start
-            settings['load'] = np.random.choice([1, 3], p=[p_low, 1-p_low]) 
             u, label = generate_input_stim_sternberg(settings)
             target = generate_target_continuous_sternberg(settings, label)
             x0, r0, w0, w_in0, taus_gaus0 = \
@@ -288,7 +287,6 @@ if args.mode.lower() == 'train':
                 u, label = generate_input_stim_mante(settings)
                 target = generate_target_continuous_mante(settings, label)
             elif args.task.lower() == 'sternberg':
-                settings['load'] = np.random.choice([1, 3], p=[p_low, 1-p_low]) # choose load by probability
                 # add time jitter to stimulus onset and delay period
                 if args.jitter_onset > 0 or args.jitter_delay > 0:
                     settings_jitter = settings.copy()
@@ -410,59 +408,37 @@ if args.mode.lower() == 'train':
             # Sternberg working memory task
             elif args.task.lower() == 'sternberg':
                 if (tr-1)%training_params['eval_freq'] == 0:
-                    eval_perfs = np.zeros(2) 
-                    for j, load in enumerate([1, 3]): # eval_tr number of trials for each load
-                        settings['load'] = load
-                        eval_perf = np.zeros((1, training_params['eval_tr']))
-                        eval_losses = np.zeros((1, training_params['eval_tr']))
-                        eval_os = np.zeros((training_params['eval_tr'], settings['T']-1))
-                        eval_labels = []
-                        for ii in range(eval_perf.shape[-1]):
-                            # resp_onset = settings['stim_on'] + settings['load']*settings['stim_dur'] + settings['delay']
-                            resp_onset = settings['stim_on'] + settings['load']*settings['stim_dur'] + settings['stim_dur'] + settings['delay']
-                            eval_u, eval_label = generate_input_stim_sternberg(settings)
-                            eval_target = generate_target_continuous_sternberg(settings, eval_label)
-                            eval_o, eval_l = sess.run([o, loss], feed_dict = \
-                                    {input_node: eval_u, z: eval_target})
-                            eval_losses[0, ii] = eval_l
-                            eval_os[ii, :] = np.array(eval_o).flatten()
-                            eval_labels.append(eval_label)
-                            if eval_label == 1: # same
-                                if np.max(eval_o[resp_onset:]) > training_params['eval_amp_threh']:
-                                    eval_perf[0, ii] = 1
-                            else:
-                                if np.min(eval_o[resp_onset:]) < -training_params['eval_amp_threh']:
-                                    eval_perf[0, ii] = 1
+                    eval_perf = np.zeros((1, training_params['eval_tr']))
+                    eval_losses = np.zeros((1, training_params['eval_tr']))
+                    eval_os = np.zeros((training_params['eval_tr'], settings['T']-1))
+                    eval_labels = []
+                    for ii in range(eval_perf.shape[-1]):
+                        resp_onset = settings['stim_on'] + settings['load']*settings['stim_dur'] + settings['stim_dur'] + settings['delay']
+                        eval_u, eval_label = generate_input_stim_sternberg(settings)
+                        eval_target = generate_target_continuous_sternberg(settings, eval_label)
+                        eval_o, eval_l = sess.run([o, loss], feed_dict = \
+                                {input_node: eval_u, z: eval_target})
+                        eval_losses[0, ii] = eval_l
+                        eval_os[ii, :] = np.array(eval_o).flatten()
+                        eval_labels.append(eval_label)
+                        if eval_label == 1: # same
+                            if np.max(eval_o[resp_onset:]) > training_params['eval_amp_threh']:
+                                eval_perf[0, ii] = 1
+                        else:
+                            if np.min(eval_o[resp_onset:]) < -training_params['eval_amp_threh']:
+                                eval_perf[0, ii] = 1
 
-                        eval_perf_mean = np.nanmean(eval_perf, 1)
-                        eval_loss_mean = np.nanmean(eval_losses, 1)
-                        print("Load: %d, Perf: %.2f, Loss: %.2f"%(load, eval_perf_mean, eval_loss_mean))
-                        eval_perfs[j] = eval_perf_mean
+                    eval_perf_mean = np.nanmean(eval_perf, 1)
+                    eval_loss_mean = np.nanmean(eval_losses, 1)
+                    print("Load: %d, Perf: %.2f, Loss: %.2f"%(settings['load'], eval_perf_mean, eval_loss_mean))
                     
-                    # if eval_loss_mean < training_params['loss_threshold'] and eval_perf_mean > 0.95:
+                    # if eval_perf_mean > 0.95 and eval_loss_mean < training_params['loss_threshold']: # 95%
                     #     training_success = True
                     #     break
-                    if eval_perfs[0] > 0.95 and eval_perfs[1] > 0.8: # 95% for load 1 and 80% for load 3
+                    
+                    if eval_perf_mean > 0.95:
                         training_success = True
                         break
-                    
-                    # adjustments to p_low based on eval performance
-                    if p_low == 1: 
-                        if eval_perfs[0] >= 0.70:
-                            p_low = 0.8
-                            print("Changing probability of low-load trials to " + str(p_low))
-                    elif p_low == 0.8:
-                        if eval_perfs[0] >= 0.7 and eval_perfs[1] >= 0.55:
-                            p_low = 0.5
-                            print("Changing probability of low-load trials to " + str(p_low))
-                    elif p_low == 0.5: 
-                        if eval_perfs[0] >= 0.85 and eval_perfs[1] >= 0.70:
-                            p_low = 0.2
-                            print("Changing probability of low-load trials to " + str(p_low))
-                    elif p_low == 0.2:
-                        if eval_perfs[0] >= 0.90 and eval_perfs[1] >= 0.80:
-                            p_low = 0.5
-                            print("Changing probability of low-load trials to " + str(p_low))
 
 
         elapsed_time = time.time() - start_time
@@ -502,8 +478,6 @@ if args.mode.lower() == 'train':
         var['stim_on_tr'] = settings['stim_on']
         var['stim_dur_tr'] = settings['stim_dur']
         if args.task.lower() == 'sternberg':
-            var['p_low'] = p_low
-            var['eval_perfs'] = eval_perfs
             var['load'] = settings['load']
             var['delay_tr'] = settings['delay']
         if args.task.lower() == 'xor':
@@ -516,7 +490,7 @@ if args.mode.lower() == 'train':
         # elif len(settings['taus']) == 1:
         #     fname = 'Task_{}_N_{}_Tau_{}_Act_{}_{}.mat'.format(args.task.lower(), N, settings['taus'][0], 
         #             training_params['activation'], fname_time)
-        fname = 'Task_{}_N_{}_Jitter_{}_{}_{}.mat'.format(args.task.lower(), N, args.jitter_onset, args.jitter_delay,
+        fname = 'Task_{}_Load_{}_N_{}_Jitter_{}_{}_{}.mat'.format(args.task.lower(), settings['load'], N, args.jitter_onset, args.jitter_delay,
                     fname_time)
         scipy.io.savemat(os.path.join(out_dir, fname), var)
 

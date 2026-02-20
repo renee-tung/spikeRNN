@@ -468,3 +468,16 @@ def get_trialtype_colors():
     stims = np.array([[-1,-1], [-1,1], [1,-1], [1,1]])
     colors = ['#6E439A','#2B1644', '#236975','#49BEA3']
     return stims, colors
+
+
+
+def find_files(path, pattern):
+    """
+    Find all files matching the given glob pattern in the specified path
+    Args:
+        path (str): path to directory
+        pattern (str): glob pattern (e.g., '*.xlsx', '*_sorted_new.mat')
+    Returns:
+        list of file paths
+    """
+    return glob.glob(os.path.join(path, pattern))
