@@ -18,6 +18,7 @@ import pandas as pd
 import pickle as pk
 import h5py
 import scipy.io as sio
+import glob
 
 import single_neuron_utils as sn
 
@@ -41,6 +42,7 @@ def find_files_ext(dir_name, ext):
 def find_files_keywords(dir_name, keywords):
     '''
     Find all files with all of the given keywords in the given directory
+    Can't include *
     '''
     files = []
     for root, dirs, filenames in os.walk(dir_name):
@@ -236,6 +238,81 @@ def load_bhv_data(model_name, condn_phrase, condn_num='',
     trial_perfs = bhv_mat['all_trial_perfs'].flatten()
 
     return trial_labels, trial_perfs
+
+def load_bhv_rate_data(model_name, condn_phrase, condn_num='', 
+                  all_models_dir='/home/nuttidalab/Documents/renee/sternberg/'):
+    '''
+    Load behavioral data from a saved rate model
+    condn_phrase is a string specifying the condition to load, eg 'delay150'
+    '''
+    # Get the data path
+    model_dir = os.path.join(all_models_dir, model_name)
+    condn_key = f'{condn_phrase}{condn_num}'
+    bhvdata_path = find_files_keywords(model_dir, ['bhv_dict', condn_key])[0]
+    if bhvdata_path == []:
+        print(f'No behavioral data found for {model_name} with condition {condn_phrase}{condn_num}')
+        return None, None
+
+    # Load the data
+    with open(bhvdata_path, 'rb') as f:
+        bhv_dict = pk.load(f)
+    
+    trial_labels = np.array(bhv_dict['trial_type'])
+    trial_perfs = bhv_dict['perf'].squeeze()
+    trial_outputs = bhv_dict['outputs']
+
+    return trial_labels, trial_perfs, trial_outputs
+
+def load_neural_rate_data(model_name, condn_phrase, condn_num='', 
+                  all_models_dir='/home/nuttidalab/Documents/renee/sternberg/',
+                  load_LFP=True, load_rates = True):
+    '''
+    Load neural data from a saved rate model
+    condn_phrase is a string specifying the condition to load, eg 'delay150'
+    '''
+    
+    # Get the data path
+    model_dir = os.path.join(all_models_dir, model_name)
+    condn_key = f'{condn_phrase}{condn_num}'
+    neuraldata_path = find_files_keywords(model_dir, ['neural_dict', condn_key])[0]
+    
+    exc_ind, inh_ind = get_celltype_label(model_name, condn_phrase, condn_num, all_models_dir=all_models_dir)
+
+    # Load the data
+    with open(neuraldata_path, 'rb') as f:
+        neural_dict = pk.load(f)
+
+    if load_LFP:
+        lfp_data = neural_dict['epsp'] # trials x time
+    else:
+        lfp_data = None
+
+    if load_rates:
+        rates = neural_dict['r'] # trials x neurons x time
+        N = rates.shape[1]  # number of neurons
+    else:
+        rates = None
+        
+    return lfp_data, rates
+
+def load_settings_rate_data(model_name, condn_phrase, condn_num='', 
+                  all_models_dir='/home/nuttidalab/Documents/renee/sternberg/'):
+    '''
+    Load settings data from a saved rate model
+    condn_phrase is a string specifying the condition to load, eg 'delay150'
+    '''
+    # Get the data path
+    model_dir = os.path.join(all_models_dir, model_name)
+    condn_key = f'{condn_phrase}{condn_num}'
+    settings_path = find_files_keywords(model_dir, ['settings_dict', condn_key])[0]
+    if settings_path == []:
+        print(f'No settings data found for {model_name} with condition {condn_phrase}{condn_num}')
+        return None 
+    
+    # Load the data
+    with open(settings_path, 'rb') as f:
+        settings_dict = pk.load(f)
+    return settings_dict
 
 def load_timing_data(model_name, condn_phrase, condn_num='', 
                      all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'): #all_models_dir='/scratch/all_DMS_models/',):

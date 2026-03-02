@@ -691,15 +691,12 @@ def eval_tf(model_dir, settings, u, lesion='', calc_epsp=False):
     # Synaptic currents and firing-rates; + EPSP
     x = np.zeros((N, T)) # synaptic currents
     r = np.zeros((N, T)) # firing-rates
-    epsp = np.zeros((N, T)) # EPSP
+    # epsp = np.zeros((N, T)) # EPSP
+    epsp = np.zeros((T))
     x[:, 0] = np.random.randn(N, )/100
     r[:, 0] = 1/(1 + np.exp(-x[:, 0]))
-    epsp[:, 0] = np.abs(np.random.randn(N, )/100)
-    # r[:, 0] = np.minimum(np.maximum(x[:, 0], 0), 1) #clipped relu
-    # r[:, 0] = np.clip(np.minimum(np.maximum(x[:, 0], 0), 1), None, 10) #clipped relu
-    # r[:, 0] = np.clip(np.log(np.exp(x[:, 0])+1), None, 10) # softplus
-    # r[:, 0] = np.minimum(np.maximum(x[:, 0], 0), 6)/6 #clipped relu6
-
+    # epsp[:, 0] = np.abs(np.random.randn(N, )/100)
+    epsp[0] = np.mean(np.abs(np.random.randn(N, )/100)) # average EPSP across all neurons at t=0
 
     # Output
     o = np.zeros((T, ))
@@ -756,7 +753,7 @@ def eval_tf(model_dir, settings, u, lesion='', calc_epsp=False):
             
         if calc_epsp == True:
             next_epsp = np.multiply((1 - DeltaT/taus_sig), np.expand_dims(x[:,t-1], 1)) + \
-                    np.multiply((DeltaT/taus_sig), ((np.matmul(ww[:,exc_ind], np.expand_dims(r[exc_ind, t-1], 1))))) 
+                    np.multiply((DeltaT/taus_sig), ((np.matmul(ww[:,exc_ind], np.expand_dims(r[exc_ind, t-1], 1)))))
             next_epsp = np.mean(next_epsp)  # average over all neurons
             epsp[t] = next_epsp
             
