@@ -2,11 +2,11 @@ clear; clc;
 
 % Directory containing all the trained rate RNN model .mat files
 
-% model_dir = '/home/nuttidalab/Documents/renee/sternberg';
-% mat_files = dir(fullfile(model_dir, '*.mat'));
-
-model_dir = '/home/nuttidalab/Documents/renee/sternberg/singleload_1/';
+model_dir = '/home/nuttidalab/Documents/renee/sternberg';
 mat_files = dir(fullfile(model_dir, '*.mat'));
+
+% model_dir = '/home/nuttidalab/Documents/renee/sternberg/singleload_1/';
+% mat_files = dir(fullfile(model_dir, '*.mat'));
 
 fs_rate = 200;
 fs_spk = 20000;

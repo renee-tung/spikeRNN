@@ -31,11 +31,11 @@ clear; clc;
 % model_dir = '/home/nuttidalab/Documents/renee/jitter_models/models/xor/P_rec_0.2_Taus_4.0_25.0/';
 % mat_files = dir(fullfile(model_dir, '*Jitter_10_2*.mat'));
 
-% model_dir = '/home/nuttidalab/Documents/renee/sternberg';
-% mat_files = dir(fullfile(model_dir, '*.mat'));
-
-model_dir = '/home/nuttidalab/Documents/renee/sternberg/singleload_1/';
+model_dir = '/home/nuttidalab/Documents/renee/sternberg';
 mat_files = dir(fullfile(model_dir, '*.mat'));
+
+% model_dir = '/home/nuttidalab/Documents/renee/sternberg/singleload_1/';
+% mat_files = dir(fullfile(model_dir, '*.mat'));
 
 % model_dir = '/home/nuttidalab/Documents/renee/all_DMS_models/';
 % mat_files = dir(fullfile(model_dir, '*.mat'));
