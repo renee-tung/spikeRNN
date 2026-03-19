@@ -2,11 +2,14 @@ clear; clc;
 
 % Directory containing all the trained rate RNN model .mat files
 
-model_dir = '/home/nuttidalab/Documents/renee/sternberg';
-mat_files = dir(fullfile(model_dir, '*.mat'));
+% model_dir = '/home/nuttidalab/Documents/renee/sternberg';
+% mat_files = dir(fullfile(model_dir, '*.mat'));
 
 % model_dir = '/home/nuttidalab/Documents/renee/sternberg/singleload_1/';
 % mat_files = dir(fullfile(model_dir, '*.mat'));
+
+model_dir = '/home/nuttidalab/Documents/renee/sternberg/interleaved_0.5/';
+mat_files = dir(fullfile(model_dir, '*N_1000*.mat'));
 
 fs_rate = 200;
 fs_spk = 20000;
@@ -19,11 +22,12 @@ use_initial_weights = false;
 % Number of trials to use to evaluate the LIF RNN
 n_trials = 50;
 
-T = 250;
+% T = 250;
 stim_on = 50;
 stim_dur = 25;
-delay = 10;
+delay = 100; %100;
 match = 0; % random 50% chance in/out
+T = stim_on + 4*stim_dur + delay + 100;
 
 for i = 1:length(mat_files)
     curr_fname = mat_files(i).name;
@@ -63,8 +67,20 @@ for i = 1:length(mat_files)
         
         scaling_factor = opt_scaling_factor;
         disp(scaling_factor)
+
+        figure('Position', [100, 100, 1400, 300]);
+
+tiledlayout(1, length(loads), ...
+    'TileSpacing', 'compact', ...
+    'Padding', 'compact');
         for i_load = 1:length(loads)
             wm_load = loads(i_load);
+            nexttile; % <-- replaces subplot
+            hold on;
+
+            ax = gca;
+            pbaspect(ax, [3 1 1]); % wide & short
+            
             target_eval = int32((double(stim_on) + double(stim_dur)*double(wm_load) + ...
                 double(delay) + double(stim_dur) + 10.0) / 200 * 20000);
 
@@ -93,7 +109,6 @@ for i = 1:length(mat_files)
                 end
             end % parfor end
 
-            figure; hold on;
             for j = 1:n_trials
                 if trials(j) == 1
                     plot(outs(j,:), 'r');
@@ -101,15 +116,19 @@ for i = 1:length(mat_files)
                     plot(outs(j,:), 'b');
                 end
             end
-            title([mat_files(i).name(end-9:end-4), ' perf ', num2str(mean(perfs)), ' lambda ', num2str(opt_scaling_factor)]);
+            title(['load = ', num2str(wm_load), ...
+                ', perf = ', num2str(mean(perfs))]);
             xline(stim_on*100)
             for i_load = 1:wm_load
                 xline((stim_on + stim_dur*i_load)*100);
             end
             xline((stim_on + stim_dur*i_load + delay)*100) % probe on
             xline((stim_on + stim_dur*i_load + delay + stim_dur)*100)
-
+            ylim([-5 5]);
+            hold off;
         end % load loop end
+        sgtitle([mat_files(i).name(end-9:end-4), ...
+            ', lambda ', num2str(opt_scaling_factor)]);
 
     end
 end
