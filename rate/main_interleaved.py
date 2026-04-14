@@ -88,6 +88,8 @@ parser.add_argument("--decay_taus", required=True,
         nargs='+', type=float,
         help="Synaptic decay time-constants (in time-steps). If only one number is given, then all\
         time-constants set to that value (i.e. not trainable). Otherwise specify two numbers (min, max).")
+parser.add_argument("--delay_dur", required=False,
+        type=int, default=10, help="Delay duration (in time-steps) for tasks that have a delay period (XOR, Sternberg, etc...)")
 parser.add_argument("--jitter_onset", required=False,
         type=int, default=0, help="Jitter stimulus onset by up to this many time-steps")
 parser.add_argument("--jitter_delay", required=False,
@@ -130,7 +132,7 @@ elif args.task.lower() == 'xor':
             'stim_on': 50, # input stim onset (in steps)
             'stim_dur': 50, # input stim duration (in steps)
             # 'delay': 15, # delay b/w the two stimuli (in steps)
-            'delay': 10, 
+            'delay': args.delay_dur, # delay b/w the two stimuli (in steps)
             'DeltaT': 1, # sampling rated
             'taus': args.decay_taus, # decay time-constants (in steps)
             'task': args.task.lower(), # task name
@@ -154,12 +156,17 @@ elif args.task.lower() == 'sternberg':
             'T': 250, # trial duration (in steps)
             'stim_on': 50, # input stim onset (in steps)
             'stim_dur': 25, # input stim duration (in steps)
-            'delay': 10, # delay b/w sample and test (in steps)
+            'delay': args.delay_dur, # delay b/w sample and test (in steps)
             'DeltaT': 1, # sampling rated
             'taus': args.decay_taus, # decay time-constants (in steps)
             'task': args.task.lower(), # task name
             'load': 1, # initialize with load 1, but will alternate with 3
             }
+    def adjust_T_sternberg(T, stim_on, stim_dur, delay, load_max):
+        min_T = stim_on + stim_dur*load_max + delay + stim_dur + 10 + stim_dur + 50 # minimum trial duration
+        T = np.amax((T, min_T))
+        return T
+    settings['T'] = adjust_T_sternberg(settings['T'], settings['stim_on'], settings['stim_dur'], settings['delay'], load_max=3)
 
 '''
 Initialize the input and output weight matrices

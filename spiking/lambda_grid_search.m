@@ -38,7 +38,8 @@ clear; clc;
 % mat_files = dir(fullfile(model_dir, '*.mat'));
 
 model_dir = '/home/nuttidalab/Documents/renee/sternberg/interleaved_0.5/'
-mat_files = dir(fullfile(model_dir, '*N_1000*.mat'));
+mat_files = dir(fullfile(model_dir, '*N_1000*_04_13_211*.mat'));
+delay = 50;
 
 % model_dir = '/home/nuttidalab/Documents/renee/all_DMS_models/';
 % mat_files = dir(fullfile(model_dir, '*.mat'));
@@ -78,8 +79,8 @@ for i = 1:length(mat_files)
   disp(eval_perf_mean)
 
   % Skip if the file was run before
-  if exist('opt_scaling_factor')
-    clearvars -except model_dir mat_files n_trials scaling_factors use_initial_weights
+  if exist('opt_scaling_factor') && (~isnan(opt_scaling_factor))
+    clearvars -except model_dir mat_files n_trials scaling_factors use_initial_weights delay
     continue;
   else
     opt_scaling_factor = NaN;
@@ -87,12 +88,12 @@ for i = 1:length(mat_files)
   end
 
   % adding this step for sternberg; skip if not done training
-  if strcmpi(task_name, 'sternberg')
-      disp(eval_perfs)
-      if tr == 39999
-          continue
-      end
-  end
+  % if strcmpi(task_name, 'sternberg')
+  %     disp(eval_perfs)
+  %     if tr == 39999
+  %         continue
+  %     end
+  % end
 
   % Go-NoGo task
   if strcmpi(task_name, 'go-nogo')
@@ -285,10 +286,11 @@ for i = 1:length(mat_files)
     % loads = [1];
     all_perfs = zeros(length(scaling_factors), 2);
 
-    T = 250;
+    % T = 300;
     stim_on = 50;
     stim_dur = 25;
-    delay = 10;
+    % delay = 50; % set above
+    T = stim_on + 4*stim_dur + delay + 100;
     match = 0; % random 50% chance in/out
 
     for k = 1:length(scaling_factors)
@@ -341,7 +343,7 @@ for i = 1:length(mat_files)
     % Save the optimal scaling factor
     opt_scaling_factor = scaling_factors(ind);
     save(curr_full, 'opt_scaling_factor', 'all_perfs', 'scaling_factors', '-append');
-    clearvars -except model_dir mat_files n_trials scaling_factors use_initial_weights
+    clearvars -except model_dir mat_files n_trials scaling_factors use_initial_weights delay
   
   end
 end

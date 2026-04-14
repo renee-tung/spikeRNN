@@ -9,7 +9,7 @@ clear; clc;
 % mat_files = dir(fullfile(model_dir, '*.mat'));
 
 model_dir = '/home/nuttidalab/Documents/renee/sternberg/interleaved_0.5/';
-mat_files = dir(fullfile(model_dir, '*N_1000*_04_13_2*.mat'));
+mat_files = dir(fullfile(model_dir, '*N_1000*_04_08_*.mat'));
 
 fs_rate = 200;
 fs_spk = 20000;
@@ -25,7 +25,7 @@ n_trials = 50;
 % T = 250;
 stim_on = 50;
 stim_dur = 25;
-delay = 50; %100;
+delay = 10; %100;
 match = 0; % random 50% chance in/out
 T = stim_on + 4*stim_dur + delay + 100;
 
@@ -49,13 +49,13 @@ for i = 1:length(mat_files)
     load(curr_full);
     clear load
 
-    % if strcmpi(task_name, 'sternberg')
-    %     disp(eval_perfs)
-    %     if tr == 39999
-    %         disp('Low training performance, skipping')
-    %         continue
-    %     end
-    % end
+    if strcmpi(task_name, 'sternberg')
+        disp(eval_perfs)
+        if tr == 39999
+            disp('Low training performance, skipping')
+            continue
+        end
+    end
 
 
     % Sternberg task
@@ -133,3 +133,11 @@ tiledlayout(1, length(loads), ...
     end
 end
 
+% taus_sig = tf.sigmoid(taus_gaus)*(taus[1] - taus[0]) + taus[0]
+
+function [sig_out] = apply_sigmoid(inputs)
+
+
+
+
+taus_sig = sigmoid(taus_gaus)*(100-4) + 4;
