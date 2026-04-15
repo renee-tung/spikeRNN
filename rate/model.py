@@ -576,7 +576,7 @@ def construct_tf(fr_rnn, settings, training_params):
         r.append(tf.clip_by_value(tf.nn.softplus(x[0]), 0, 20))
 
     # Initialize recurrent weight matrix, mask, input & output weight matrices
-    w = tf.get_variable('w', initializer = fr_rnn.W, dtype=tf.float32, trainable=True)
+    w = tf.get_variable('w', initializer = fr_rnn.W.astype('float32'), dtype=tf.float32, trainable=True)
     m = tf.get_variable('m', initializer = fr_rnn.mask, dtype=tf.float32, trainable=False)
     som_m = tf.get_variable('som_m', initializer = fr_rnn.som_mask, dtype=tf.float32,
             trainable=False)
