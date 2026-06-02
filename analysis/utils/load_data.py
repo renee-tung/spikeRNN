@@ -55,6 +55,17 @@ def find_files_keywords(dir_name, keywords):
 
     return files
 
+def find_files(path, pattern):
+    """
+    Find all files matching the given glob pattern in the specified path
+    Args:
+        path (str): path to directory
+        pattern (str): glob pattern (e.g., '*.xlsx', '*_sorted_new.mat')
+    Returns:
+        list of file paths
+    """
+    return glob.glob(os.path.join(path, pattern))
+
 
 def rmv_lowfr_neurons(neuron_idxs, N, spk_df=None, rates_data=None, lfp_data=None, 
                       connectivity_df=None, W=None, exc_ind=None, inh_ind = None, remove_lowfr=True):
@@ -239,7 +250,7 @@ def load_bhv_data(model_name, condn_phrase, condn_num='',
 
     return trial_labels, trial_perfs
 
-def load_bhv_rate_data(model_name, condn_phrase, condn_num='', 
+def load_bhv_rate_data(model_name, condn_phrase, condn_num='', other_labels=[],
                   all_models_dir='/home/nuttidalab/Documents/renee/sternberg/'):
     '''
     Load behavioral data from a saved rate model
@@ -248,7 +259,10 @@ def load_bhv_rate_data(model_name, condn_phrase, condn_num='',
     # Get the data path
     model_dir = os.path.join(all_models_dir, model_name)
     condn_key = f'{condn_phrase}{condn_num}'
-    bhvdata_path = find_files_keywords(model_dir, ['bhv_dict', condn_key])[0]
+    if other_labels:
+        bhvdata_path = find_files_keywords(model_dir, ['bhv_dict', condn_key, other_labels])[0]
+    else:
+        bhvdata_path = find_files_keywords(model_dir, ['bhv_dict', condn_key])[0]
     if bhvdata_path == []:
         print(f'No behavioral data found for {model_name} with condition {condn_phrase}{condn_num}')
         return None, None
@@ -263,7 +277,7 @@ def load_bhv_rate_data(model_name, condn_phrase, condn_num='',
 
     return trial_labels, trial_perfs, trial_outputs
 
-def load_neural_rate_data(model_name, condn_phrase, condn_num='', 
+def load_neural_rate_data(model_name, condn_phrase, condn_num='', other_labels=[],
                   all_models_dir='/home/nuttidalab/Documents/renee/sternberg/',
                   load_LFP=True, load_rates = True):
     '''
@@ -274,7 +288,10 @@ def load_neural_rate_data(model_name, condn_phrase, condn_num='',
     # Get the data path
     model_dir = os.path.join(all_models_dir, model_name)
     condn_key = f'{condn_phrase}{condn_num}'
-    neuraldata_path = find_files_keywords(model_dir, ['neural_dict', condn_key])[0]
+    if other_labels:
+        neuraldata_path = find_files_keywords(model_dir, ['neural_dict', condn_key, other_labels])[0]
+    else:
+        neuraldata_path = find_files_keywords(model_dir, ['neural_dict', condn_key])[0]
     
     exc_ind, inh_ind = get_celltype_label(model_name, condn_phrase, condn_num, all_models_dir=all_models_dir)
 
@@ -295,7 +312,7 @@ def load_neural_rate_data(model_name, condn_phrase, condn_num='',
         
     return lfp_data, rates
 
-def load_settings_rate_data(model_name, condn_phrase, condn_num='', 
+def load_settings_rate_data(model_name, condn_phrase, condn_num='', other_labels=[],
                   all_models_dir='/home/nuttidalab/Documents/renee/sternberg/'):
     '''
     Load settings data from a saved rate model
@@ -304,7 +321,10 @@ def load_settings_rate_data(model_name, condn_phrase, condn_num='',
     # Get the data path
     model_dir = os.path.join(all_models_dir, model_name)
     condn_key = f'{condn_phrase}{condn_num}'
-    settings_path = find_files_keywords(model_dir, ['settings_dict', condn_key])[0]
+    if other_labels:
+        settings_path = find_files_keywords(model_dir, ['settings_dict', condn_key, other_labels])[0]
+    else:
+        settings_path = find_files_keywords(model_dir, ['settings_dict', condn_key])[0]
     if settings_path == []:
         print(f'No settings data found for {model_name} with condition {condn_phrase}{condn_num}')
         return None 
@@ -416,6 +436,15 @@ def get_celltype_label(model_name, condn_phrase='', condn_num='', remove_lowfr=F
     
     return exc_ind, inh_ind
 
+def get_w_out(model_name, all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'):
+    '''
+    Get the output weights for a given model
+    '''
+    mat_data = get_model(model_name, all_models_dir)
+    w_out = mat_data['w_out']
+    
+    return w_out.flatten()
+
 
 def get_timescales(model_name, all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'):
     '''
@@ -438,7 +467,7 @@ def get_connectivity_df(model_name, condn_phrase, condn_num, remove_lowfr=False,
     Get the connectivity data for a given model
     '''
     mat_data = get_model(model_name, all_models_dir)
-    final_w = get_weights(model_name, condn_phrase, condn_num)
+    final_w = get_weights(model_name, condn_phrase, condn_num, all_models_dir=all_models_dir)
     exc_ind = np.where(mat_data['exc'] == 1)[0]
     
     # Initialize list for flattened rows
@@ -542,7 +571,7 @@ def get_models_by_perf(low_cutoff, high_cutoff, condn_phrase, condn_num='',
 
 
 def get_trialtype_colors():
-    stims = np.array([[-1,-1], [-1,1], [1,-1], [1,1]])
+    stims = np.array([[1,-1], [1,1], [3,1], [3, -1]])
     colors = ['#6E439A','#2B1644', '#236975','#49BEA3']
     return stims, colors
 

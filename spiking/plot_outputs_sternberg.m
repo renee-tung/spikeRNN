@@ -9,7 +9,7 @@ clear; clc;
 % mat_files = dir(fullfile(model_dir, '*.mat'));
 
 model_dir = '/home/nuttidalab/Documents/renee/sternberg/interleaved_0.5/';
-mat_files = dir(fullfile(model_dir, '*N_1000*_04_13_2*.mat'));
+mat_files = dir(fullfile(model_dir, '*N_1000*_04_14*.mat'));
 
 fs_rate = 200;
 fs_spk = 20000;

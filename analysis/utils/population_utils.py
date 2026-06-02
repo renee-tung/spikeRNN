@@ -26,19 +26,20 @@ from bootstrap_method import *
 
 def plot_trajectory_pca(model_name, condn_phrase, condn_num, pca_obj = None,
                     neuron_ids=None, rates_data=None, trial_labels=None,
-                    cut_off = 50, ds=10, plot=1,
+                    cut_off = 25, ds=10, plot=1, sigma=50,
                     linestyle='-', alpha=0.9,
                     ax=None, title=None,
-                    all_models_dir='/home/nuttidalab/Documents/renee/all_DMS_models/'):
+                    all_models_dir='/home/nuttidalab/Documents/renee/sternberg/interleaved_0.5'):
     """
     Plot the trajectory of the population activity for a given model and condition
     """
     # Load the data
     if rates_data is None:
-        _, _, rates_data = ld.load_neural_data(model_name, condn_phrase, condn_num, load_rates=True, 
-                                                all_models_dir=all_models_dir)
+        _, rates_data = ld.load_neural_rate_data(model_name, condn_phrase, condn_num,
+                                            all_models_dir = all_models_dir, load_LFP=False)
     if trial_labels is None:
-        trial_labels, _ = ld.load_bhv_data(model_name, condn_phrase, condn_num, all_models_dir=all_models_dir)
+        trial_labels, trial_perfs, trial_outputs = ld.load_bhv_rate_data(model_name, condn_phrase, condn_num,
+                                                    all_models_dir=all_models_dir)
 
     if neuron_ids is not None: # trim the population activity to the specified neurons
         rates_data = rates_data[:, neuron_ids, :]
@@ -48,23 +49,24 @@ def plot_trajectory_pca(model_name, condn_phrase, condn_num, pca_obj = None,
         fig = plt.figure(figsize=(6, 4))
         ax = fig.add_subplot(111, projection='3d')
         
-    times_ms, times_real, fs_dict = ld.get_times_dict('ds', condn_phrase, condn_num, 
-                                                      model_name=model_name, all_models_dir=all_models_dir) #ds is fs=1000, ms
+    settings = ld.load_settings_rate_data(model_name, condn_phrase, condn_num, all_models_dir=all_models_dir)
 
     stims, colors = ld.get_trialtype_colors()
        
     
     # get avg firing rate for each trial type
-    new_T = int(times_ms['T'] - cut_off)
+    new_T = int(settings['T'] - cut_off)
     if new_T <= 0:
         raise ValueError("cut_off is too large, resulting in non-positive time length for trials.")
-    trial_types, trial_idxs = np.unique(trial_labels, axis=0, return_inverse=True)
+    trial_types, trial_idxs = np.unique(trial_labels[:,:2], axis=0, return_inverse=True)
     mean_rates = np.zeros((len(trial_types), new_T, rates_data.shape[1])) # trial_types x time x neurons
     
     # get mean rates for each trial type
     for i, trial_type in enumerate(trial_types):
         trials_idx = (trial_idxs == i)
-        trials_rate = rates_data[cut_off:, :, trials_idx] # time x neurons x trials
+        trials_rate = rates_data[trials_idx, :, cut_off:] # trials x neurons x time
+        trials_rate = np.transpose(trials_rate, (2,1,0)) # time x neurons x trials
+        # trials_rate = rates_data[cut_off:, :, trials_idx] # time x neurons x trials
 
         mean_rates[i,:,:] = np.mean(trials_rate, axis=2) # avg across trials, time x neurons
     
@@ -82,21 +84,23 @@ def plot_trajectory_pca(model_name, condn_phrase, condn_num, pca_obj = None,
     varexp = pca_obj.explained_variance_ratio_ # 3 x 1
     print(f'PCA explained variance: {varexp}, total: {varexp.sum()}')
     rates_comp = rates_pca.reshape(len(trial_types), -1, 3) # trials x time x 3
-    rates_comp = gaussian_filter1d(rates_comp, sigma=50, axis=1)  # smooth over time axis
+    rates_comp = gaussian_filter1d(rates_comp, sigma=sigma, axis=1)  # smooth over time axis
     
     # Stimulus times in original timepoints, then downsampled
-    stim1_on = int(times_ms['stim1_on'] - cut_off)
-    stim1_off = int(times_ms['stim1_off'] - cut_off)
-    stim2_on = int(times_ms['stim2_on'] - cut_off)
-    stim2_off = int(times_ms['stim2_off'] - cut_off)
+    stim_on = int(settings['stim_on'] - cut_off)
+    stim_dur = int(settings['stim_dur'])
+    delay = int(settings['delay'])
 
     # downsample
     if ds is not None:
         rates_comp = rates_comp[:, ::ds, :]  # downsample
-        stim1_on = int(stim1_on // ds)  # adjust stim times for downsampling
-        stim1_off = int(stim1_off // ds)
-        stim2_on = int(stim2_on // ds)
-        stim2_off = int(stim2_off // ds)
+        stim_on = int(stim_on // ds)  # adjust stim times for downsampling
+        stim_dur = int(stim_dur // ds)
+        delay = int(delay // ds)
+        # stim1_on = int(stim1_on // ds)  # adjust stim times for downsampling
+        # stim1_off = int(stim1_off // ds)
+        # stim2_on = int(stim2_on // ds)
+        # stim2_off = int(stim2_off // ds)
 
     # # Stimulus times in original timepoints, then downsampled
     # stim1_on = int((times_ms['stim1_on'] - cut_off) // ds)
@@ -106,18 +110,23 @@ def plot_trajectory_pca(model_name, condn_phrase, condn_num, pca_obj = None,
 
     # plot the trajectory in 3D
     for i, trial_type in enumerate(trial_types):
+        # color_idx = i
         color_idx = matching_stim_idx(stims, trial_type)
+        load = trial_type[0]
+        delay_start = int(stim_on + stim_dur*load)
+        delay_end = int(delay_start + delay)
+        probe_end = int(delay_end + stim_dur)
         ax.plot(rates_comp[i, :, 0], rates_comp[i, :, 1], rates_comp[i, :, 2], 
                 color=colors[color_idx], label=str(trial_type), linestyle=linestyle, alpha=alpha)
         
         # plot over stim times with thicker lines
-        ax.plot(rates_comp[i, stim1_on:stim1_off, 0],
-                rates_comp[i, stim1_on:stim1_off, 1],
-                rates_comp[i, stim1_on:stim1_off, 2],
+        ax.plot(rates_comp[i, stim_on:delay_start, 0],
+                rates_comp[i, stim_on:delay_start, 1],
+                rates_comp[i, stim_on:delay_start, 2],
                 color=colors[color_idx], linewidth=5, linestyle=linestyle, alpha=alpha)
-        ax.plot(rates_comp[i, stim2_on:stim2_off, 0],
-                rates_comp[i, stim2_on:stim2_off, 1],
-                rates_comp[i, stim2_on:stim2_off, 2],
+        ax.plot(rates_comp[i, delay_end:probe_end, 0],
+                rates_comp[i, delay_end:probe_end, 1],
+                rates_comp[i, delay_end:probe_end, 2],
                 color=colors[color_idx], linewidth=5, linestyle=linestyle, alpha=alpha)
         
         # plot a star at the end of the trajectory
@@ -394,5 +403,5 @@ def matching_stim_idx(trial_labels, stim_label):
     stim_label is a 1D array representing the stimulus label to match.
     Returns the indices of trials that match the stimulus label.
     """
-    stim_idx = np.where(np.all(trial_labels == stim_label, axis=1))[0][0]
+    stim_idx = np.where(np.all(trial_labels[:,:2] == stim_label, axis=1))[0][0]
     return stim_idx

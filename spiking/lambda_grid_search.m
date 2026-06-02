@@ -38,7 +38,7 @@ clear; clc;
 % mat_files = dir(fullfile(model_dir, '*.mat'));
 
 model_dir = '/home/nuttidalab/Documents/renee/sternberg/interleaved_0.5/'
-mat_files = dir(fullfile(model_dir, '*N_1000*_04_13_211*.mat'));
+mat_files = dir(fullfile(model_dir, '*N_1000*_04_14*.mat'));
 delay = 50;
 
 % model_dir = '/home/nuttidalab/Documents/renee/all_DMS_models/';
