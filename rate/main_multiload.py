@@ -103,7 +103,9 @@ parser.add_argument("--jitter_delay", required=False,
 args = parser.parse_args()
 
 # Set up the output dir where the output model will be saved
-out_dir = os.path.join(args.output_dir, args.task.lower(), 'multiload_' + '_'.join(str(load) for load in args.task_load))
+task_loads = args.task_load
+task_loads = [int(load) for load in task_loads]
+out_dir = os.path.join(args.output_dir, args.task.lower(), 'multiload_' + '_'.join(str(load) for load in task_loads))
 # out_dir = os.path.join(args.output_dir, 'models', args.task.lower())
 # if args.apply_dale == False:
 #     out_dir = os.path.join(out_dir, 'NoDale')
@@ -155,8 +157,6 @@ elif args.task.lower() == 'mante':
             }
 elif args.task.lower() == 'sternberg':
     # Sternberg working memory task
-    task_loads = args.task_load
-    task_loads = [int(load) for load in task_loads]
     settings = {
             'T': 250, # trial duration (in steps)
             'stim_on': 50, # input stim onset (in steps)

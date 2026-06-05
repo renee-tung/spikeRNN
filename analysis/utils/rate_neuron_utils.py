@@ -124,7 +124,7 @@ def plot_load_tuning(tuning, tuning_options = [1, 3, np.nan], cell_idxs=None, ex
 
 
 def calc_stim1_tuning(model_name, condn_phrase, condn_num, other_labels = "balance_match",
-                     rates_data=None, other_variables=None,
+                     rates_data=None, other_variables=None, period='stim1',
                      anova_resamples=2000, pairwise_resamples=2000,
                      use_prescreen=True, prescreen_alpha=0.20,
                      show_progress=False,
@@ -155,6 +155,15 @@ def calc_stim1_tuning(model_name, condn_phrase, condn_num, other_labels = "balan
         trial_labels, trial_perfs, trial_outputs = ld.load_bhv_rate_data(model_name, condn_phrase, condn_num,
                                                         other_labels=other_labels,
                                                         all_models_dir=all_models_dir)
+        
+    # calculate tuning only from load=1 trials
+    trial_loads = trial_labels[:, 0]
+    load_1_idxs = np.where(trial_loads == 1)[0]
+    # reshape everything to only include load-1 trials
+    trial_labels = trial_labels[load_1_idxs]
+    trial_perfs = trial_perfs[load_1_idxs]
+    trial_outputs = trial_outputs[load_1_idxs]
+    rates_data = rates_data[load_1_idxs, :, :]
 
     # get timing info
     settings = ld.load_settings_rate_data(model_name, condn_phrase, condn_num, 
@@ -165,14 +174,21 @@ def calc_stim1_tuning(model_name, condn_phrase, condn_num, other_labels = "balan
     stim1_labels = trial_labels[:, stim1_col]
     stim1s = np.unique(stim1_labels)
 
-    # Mean firing rate during stim1 period for each trial and neuron: [n_trials, n_neurons]
-    stim1_idx_start = int(settings['stim_on'])
-    stim1_idx_stop = int(settings['stim_on'] + settings['stim_dur'])
-    stim1_trial_means = np.mean(rates_data[:, :, stim1_idx_start:stim1_idx_stop], axis=2)
+    if period == 'stim1':
+        # Mean firing rate during stim1 period for each trial and neuron: [n_trials, n_neurons]
+        stim1_idx_start = int(settings['stim_on'])
+        stim1_idx_stop = int(settings['stim_on'] + settings['stim_dur'])
+        trial_mean_frs = np.mean(rates_data[:, :, stim1_idx_start:stim1_idx_stop], axis=2)
+    elif period == 'delay':
+        # Mean firing rate during delay period for each trial and neuron: [n_trials, n_neurons]
+        delay_idx_start = int(settings['stim_on'] + settings['stim_dur'])
+        delay_idx_stop = int(settings['stim_on'] + settings['stim_dur'] + settings['delay'])
+        trial_mean_frs = np.mean(rates_data[:, :, delay_idx_start:delay_idx_stop], axis=2)
+    # return trial_mean_frs, stim1_labels, stim1s
 
     # Group trial-wise means by stim1 identity.
     # Each entry has shape [n_trials_for_stim, n_neurons].
-    stim1_groups = [stim1_trial_means[stim1_labels == stim1] for stim1 in stim1s]
+    stim1_groups = [trial_mean_frs[stim1_labels == stim1] for stim1 in stim1s]
 
     if len(stim1_groups) < 2:
         return np.full(rates_data.shape[1], np.nan)
@@ -381,7 +397,7 @@ def _dunn_test_pval_matrix(groups, p_adjust='holm'):
 
 
 def calc_stim1_tuning_nonparametric(model_name, condn_phrase, condn_num, other_labels="balance_match",
-                                    rates_data=None, other_variables=None,
+                                    rates_data=None, other_variables=None, period='stim1',
                                     use_prescreen=True, prescreen_alpha=0.20,
                                     kw_alpha=0.05, dunn_alpha=0.05,
                                     dunn_p_adjust='holm',
@@ -418,6 +434,15 @@ def calc_stim1_tuning_nonparametric(model_name, condn_phrase, condn_num, other_l
                                                                           other_labels=other_labels,
                                                                           all_models_dir=all_models_dir)
 
+    # calculate tuning only from load=1 trials
+    trial_loads = trial_labels[:, 0]
+    load_1_idxs = np.where(trial_loads == 1)[0]
+    # reshape everything to only include load-1 trials
+    trial_labels = trial_labels[load_1_idxs]
+    trial_perfs = trial_perfs[load_1_idxs]
+    trial_outputs = trial_outputs[load_1_idxs]
+    rates_data = rates_data[load_1_idxs, :, :]
+    
     # Get timing info.
     settings = ld.load_settings_rate_data(model_name, condn_phrase, condn_num,
                                           other_labels=other_labels,
@@ -428,13 +453,18 @@ def calc_stim1_tuning_nonparametric(model_name, condn_phrase, condn_num, other_l
     stim1_labels = trial_labels[:, stim1_col]
     stim1s = np.unique(stim1_labels)
 
-    # Mean firing rate during stim1 period for each trial and neuron: [n_trials, n_neurons].
-    stim1_idx_start = int(settings['stim_on'])
-    stim1_idx_stop = int(settings['stim_on'] + settings['stim_dur'])
-    stim1_trial_means = np.mean(rates_data[:, :, stim1_idx_start:stim1_idx_stop], axis=2)
+    if period == 'stim1':
+        # Mean firing rate during stim1 period for each trial and neuron: [n_trials, n_neurons].
+        stim1_idx_start = int(settings['stim_on'])
+        stim1_idx_stop = int(settings['stim_on'] + settings['stim_dur'])
+        trial_mean_frs = np.mean(rates_data[:, :, stim1_idx_start:stim1_idx_stop], axis=2)
+    elif period == 'delay':
+        delay_idx_start = int(settings['stim_on'] + settings['stim_dur'])
+        delay_idx_stop = int(settings['stim_on'] + settings['stim_dur'] + settings['delay'])
+        trial_mean_frs = np.mean(rates_data[:, :, delay_idx_start:delay_idx_stop], axis=2)
 
     # Group trial-wise means by stim1 identity.
-    stim1_groups = [stim1_trial_means[stim1_labels == stim1] for stim1 in stim1s]
+    stim1_groups = [trial_mean_frs[stim1_labels == stim1] for stim1 in stim1s]
 
     if len(stim1_groups) < 2:
         return np.full(rates_data.shape[1], np.nan)
