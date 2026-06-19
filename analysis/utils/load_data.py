@@ -571,8 +571,12 @@ def get_models_by_perf(low_cutoff, high_cutoff, condn_phrase, condn_num='',
 
 
 def get_trialtype_colors():
-    stims = np.array([[1,-1], [1,1], [3,1], [3, -1]])
-    colors = ['#6E439A','#2B1644', '#236975','#49BEA3']
+    # stims = np.array([[1,-1], [1,1], [3,1], [3, -1]])
+    # colors = ['#6E439A','#2B1644', '#236975','#49BEA3']
+    
+    stims = np.array([[1,-1], [1,1], [2,-1], [2,1], [3,-1], [3, 1]])
+    colors = ['#2B1644','#6E439A',"#1A5198", "#66A7FB", '#236975','#49BEA3']
+    
     return stims, colors
 
 

@@ -32,7 +32,7 @@ import pickle as pk
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from itertools import permutations, product
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -43,7 +43,8 @@ DEFAULT_SETTINGS: Dict[str, int | str] = {
     "T": 450,
     "stim_on": 50,
     "stim_dur": 25,
-    "delay": 200,
+    # "delay": 200,
+    "delay": 150,
     "DeltaT": 1,
     "taus": 20,
     "fs": 200,
@@ -184,7 +185,12 @@ class PreparedModel:
     exc_ind: np.ndarray
 
 
-def _prepare_model_numpy(model_path: str, lesion: str = "") -> PreparedModel:
+def _prepare_model_numpy(
+    model_path: str,
+    lesion: str = "",
+    lesion_inds: Optional[List[Tuple[Optional[np.ndarray], Optional[np.ndarray]]]] = None,
+    lesion_scale: float = 0.5,
+) -> PreparedModel:
     """Load and precompute model matrices once per worker/model."""
     var = scipy.io.loadmat(model_path)
 
@@ -208,13 +214,21 @@ def _prepare_model_numpy(model_path: str, lesion: str = "") -> PreparedModel:
     if lesion:
         lesion_mask = np.ones_like(w, dtype=np.float32)
         if lesion == "ii":
-            lesion_mask[np.ix_(inh_ind, inh_ind)] = 0.5
+            lesion_mask[np.ix_(inh_ind, inh_ind)] = lesion_scale
         elif lesion == "ei":
-            lesion_mask[np.ix_(exc_ind, inh_ind)] = 0.5
+            lesion_mask[np.ix_(exc_ind, inh_ind)] = lesion_scale
         elif lesion == "ie":
-            lesion_mask[np.ix_(inh_ind, exc_ind)] = 0.5
+            lesion_mask[np.ix_(inh_ind, exc_ind)] = lesion_scale
         elif lesion == "ee":
-            lesion_mask[np.ix_(exc_ind, exc_ind)] = 0.5
+            lesion_mask[np.ix_(exc_ind, exc_ind)] = lesion_scale
+        elif lesion == "custom" and lesion_inds is not None:
+            for row_inds, col_inds in lesion_inds:
+                if row_inds is None:
+                    lesion_mask[:, col_inds] = lesion_scale
+                elif col_inds is None:
+                    lesion_mask[row_inds, :] = lesion_scale
+                else:
+                    lesion_mask[np.ix_(row_inds, col_inds)] = lesion_scale
         w = w * lesion_mask
 
     if som_n > 0:
@@ -351,20 +365,25 @@ def _run_single_model_worker_balance_match(
     backend: str,
     device: str,
     overwrite: bool,
+    lesion: str = "",
+    lesion_inds: Optional[List[Tuple[Optional[np.ndarray], Optional[np.ndarray]]]] = None,
+    lesion_scale: float = 0.5,
+    lesion_tag: str = "",
 ) -> str:
     """Worker for random trial generation with balanced match/mismatch per load."""
     model_name = os.path.basename(model_path)
     output_dir = os.path.join(model_dir, model_name[:-4])
     os.makedirs(output_dir, exist_ok=True)
 
-    neural_path = os.path.join(output_dir, f"neural_dict_delay{settings['delay']}_balance_match.pkl")
-    bhv_path = os.path.join(output_dir, f"bhv_dict_delay{settings['delay']}_balance_match.pkl")
-    settings_path = os.path.join(output_dir, f"settings_dict_delay{settings['delay']}_balance_match.pkl")
+    lesion_suffix = f"_lesion_{lesion_tag or lesion}" if lesion else ""
+    neural_path = os.path.join(output_dir, f"neural_dict_delay{settings['delay']}_balance_match{lesion_suffix}.pkl")
+    bhv_path = os.path.join(output_dir, f"bhv_dict_delay{settings['delay']}_balance_match{lesion_suffix}.pkl")
+    settings_path = os.path.join(output_dir, f"settings_dict_delay{settings['delay']}_balance_match{lesion_suffix}.pkl")
 
     if (not overwrite) and os.path.exists(neural_path) and os.path.exists(bhv_path):
         return f"skipping {model_name}, already saved"
 
-    prepared = _prepare_model_numpy(model_path)
+    prepared = _prepare_model_numpy(model_path, lesion=lesion, lesion_inds=lesion_inds, lesion_scale=lesion_scale)
 
     # Pre-compute max_load from loads
     max_load = max(loads)
@@ -442,19 +461,24 @@ def _run_single_model_worker(
     backend: str,
     device: str,
     overwrite: bool,
+    lesion: str = "",
+    lesion_inds: Optional[List[Tuple[Optional[np.ndarray], Optional[np.ndarray]]]] = None,
+    lesion_scale: float = 0.5,
+    lesion_tag: str = "",
 ) -> str:
     model_name = os.path.basename(model_path)
     output_dir = os.path.join(model_dir, model_name[:-4])
     os.makedirs(output_dir, exist_ok=True)
 
-    neural_path = os.path.join(output_dir, f"neural_dict_delay{settings['delay']}_balance_stims.pkl")
-    bhv_path = os.path.join(output_dir, f"bhv_dict_delay{settings['delay']}_balance_stims.pkl")
-    settings_path = os.path.join(output_dir, f"settings_dict_delay{settings['delay']}_balance_stims.pkl")
+    lesion_suffix = f"_lesion_{lesion_tag or lesion}" if lesion else ""
+    neural_path = os.path.join(output_dir, f"neural_dict_delay{settings['delay']}_balance_stims{lesion_suffix}.pkl")
+    bhv_path = os.path.join(output_dir, f"bhv_dict_delay{settings['delay']}_balance_stims{lesion_suffix}.pkl")
+    settings_path = os.path.join(output_dir, f"settings_dict_delay{settings['delay']}_balance_stims{lesion_suffix}.pkl")
 
     if (not overwrite) and os.path.exists(neural_path) and os.path.exists(bhv_path):
         return f"skipping {model_name}, already saved"
 
-    prepared = _prepare_model_numpy(model_path)
+    prepared = _prepare_model_numpy(model_path, lesion=lesion, lesion_inds=lesion_inds, lesion_scale=lesion_scale)
 
     max_load = trial_stims.shape[1] - 1
     trial_specs: List[Tuple[np.ndarray, int, int, np.ndarray, int]] = []
@@ -517,6 +541,93 @@ def _run_single_model_worker(
     return f"saved model outputs to {output_dir}"
 
 
+def _run_single_model_worker_precomputed(
+    model_path: str,
+    model_dir: str,
+    settings: Dict[str, Any],
+    u_all: np.ndarray,
+    trial_type_all: np.ndarray,
+    eval_amp_threshold: float,
+    backend: str,
+    device: str,
+    overwrite: bool,
+    lesion: str = "",
+    lesion_inds: Optional[List[Tuple[Optional[np.ndarray], Optional[np.ndarray]]]] = None,
+    lesion_scale: float = 0.5,
+    lesion_tag: str = "",
+) -> str:
+    """Worker that evaluates pre-generated stimuli passed in as u_all.
+
+    u_all : (n_trials, n_channels, t_total)
+    trial_type_all : (n_trials, ...) — saved directly into bhv_dict.
+        Columns 0 and 1 are expected to be load and label (1 / -1) so that
+        performance can be computed; other columns are passed through as-is.
+    """
+    model_name = os.path.basename(model_path)
+    output_dir = os.path.join(model_dir, model_name[:-4])
+    os.makedirs(output_dir, exist_ok=True)
+
+    lesion_suffix = f"_lesion_{lesion_tag or lesion}" if lesion else ""
+    neural_path = os.path.join(output_dir, f"neural_dict_delay{settings['delay']}_precomputed{lesion_suffix}.pkl")
+    bhv_path = os.path.join(output_dir, f"bhv_dict_delay{settings['delay']}_precomputed{lesion_suffix}.pkl")
+    settings_path = os.path.join(output_dir, f"settings_dict_delay{settings['delay']}_precomputed{lesion_suffix}.pkl")
+
+    if (not overwrite) and os.path.exists(neural_path) and os.path.exists(bhv_path):
+        return f"skipping {model_name}, already saved"
+
+    prepared = _prepare_model_numpy(model_path, lesion=lesion, lesion_inds=lesion_inds, lesion_scale=lesion_scale)
+
+    n_total = len(u_all)
+
+    first_u = u_all[0]
+    if backend == "torch":
+        _, first_r, first_o, first_epsp = eval_trial_torch(prepared, settings, first_u, device=device, calc_epsp=True)
+    else:
+        _, first_r, first_o, first_epsp = eval_trial_numpy(prepared, settings, first_u, calc_epsp=True)
+
+    r_all = np.empty((n_total,) + first_r.shape, dtype=first_r.dtype)
+    epsp_all = np.empty((n_total,) + np.atleast_1d(first_epsp).shape, dtype=np.atleast_1d(first_epsp).dtype)
+    out_all = np.empty((n_total,) + first_o.shape, dtype=first_o.dtype)
+    perf_all = np.zeros(n_total, dtype=np.int8)
+
+    def _compute_perf(o, trial_type_row):
+        load = int(trial_type_row[0])
+        label = int(trial_type_row[1])
+        resp_onset = int(settings["stim_on"] + load * settings["stim_dur"] + settings["delay"] + 10)
+        if label == 1:
+            return int(np.max(o[resp_onset:]) > eval_amp_threshold)
+        else:
+            return int(np.min(o[resp_onset:]) < -eval_amp_threshold)
+
+    r_all[0] = first_r
+    epsp_all[0] = first_epsp
+    out_all[0] = first_o
+    perf_all[0] = _compute_perf(first_o, trial_type_all[0])
+
+    for i in range(1, n_total):
+        if backend == "torch":
+            _, r, o, epsp = eval_trial_torch(prepared, settings, u_all[i], device=device, calc_epsp=True)
+        else:
+            _, r, o, epsp = eval_trial_numpy(prepared, settings, u_all[i], calc_epsp=True)
+
+        r_all[i] = r
+        epsp_all[i] = epsp
+        out_all[i] = o
+        perf_all[i] = _compute_perf(o, trial_type_all[i])
+
+    neural_dict = {"r": r_all, "epsp": epsp_all}
+    bhv_dict = {"perf": perf_all, "trial_type": trial_type_all, "outputs": out_all}
+
+    with open(neural_path, "wb") as f:
+        pk.dump(neural_dict, f)
+    with open(bhv_path, "wb") as f:
+        pk.dump(bhv_dict, f)
+    with open(settings_path, "wb") as f:
+        pk.dump(settings.copy(), f)
+
+    return f"saved model outputs to {output_dir}"
+
+
 def list_models(model_dir: str, pattern: str = "*N_1000*.mat") -> List[str]:
     model_names = find_files(model_dir, pattern)
     print(len(model_names))
@@ -561,28 +672,44 @@ def generate_data(
     mode: str = "balance_stims",
     n_trials: int = 50,
     loads: List[int] = None,
+    delay: int = None,
+    lesion: str = "",
+    lesion_inds: Optional[List[Tuple[Optional[np.ndarray], Optional[np.ndarray]]]] = None,
+    lesion_scale: float = 0.5,
+    lesion_tag: str = "",
+    include_models: Optional[Sequence[str]] = None,
+    u_all: Optional[np.ndarray] = None,
+    trial_type_all: Optional[np.ndarray] = None,
 ) -> None:
     """Generate trial data for Sternberg task models.
-    
+
     Parameters
     ----------
     mode : str
         "balance_stims": Use all combinations from get_all_stim_combos() repeated n_repetitions times.
         "balance_match": Randomly generate trials with balanced match/mismatch per load.
+        "precomputed": Evaluate pre-generated stimuli supplied via u_all / trial_type_all.
     n_trials : int
         Number of trials per load per match condition (used in balance_match mode).
     loads : List[int]
         List of load values to use (used in balance_match mode). Default [1, 3].
+    u_all : np.ndarray, shape (n_trials, n_channels, t_total)
+        Pre-generated input stimuli (precomputed mode only).
+    trial_type_all : np.ndarray, shape (n_trials, ...)
+        Trial metadata saved into bhv_dict (precomputed mode only).
+        Column 0 = load, column 1 = label (1/-1) are used to compute performance.
     """
     if loads is None:
-        loads = [1, 3]
+        loads = [1, 2, 3]
 
-    model_list = find_files(model_dir, pattern)
+    model_list = _select_model_paths(model_dir, pattern, include_models)
     if not model_list:
         print("No models found.")
         return
 
     settings = DEFAULT_SETTINGS.copy()
+    if delay is not None:
+        settings["delay"] = delay
 
     if backend == "torch" and device.startswith("cuda") and workers > 1:
         print("GPU mode with multiple workers can cause contention; forcing workers=1.")
@@ -609,6 +736,10 @@ def generate_data(
                     backend,
                     device,
                     overwrite,
+                    lesion,
+                    lesion_inds,
+                    lesion_scale,
+                    lesion_tag,
                 )
                 for model_path in model_list
             ]
@@ -625,11 +756,37 @@ def generate_data(
                     backend,
                     device,
                     overwrite,
+                    lesion,
+                    lesion_inds,
+                    lesion_scale,
+                    lesion_tag,
+                )
+                for model_path in model_list
+            ]
+        elif mode == "precomputed":
+            if u_all is None or trial_type_all is None:
+                raise ValueError("mode='precomputed' requires u_all and trial_type_all to be provided.")
+            futures = [
+                executor.submit(
+                    _run_single_model_worker_precomputed,
+                    model_path,
+                    model_dir,
+                    settings,
+                    u_all,
+                    trial_type_all,
+                    eval_amp_threshold,
+                    backend,
+                    device,
+                    overwrite,
+                    lesion,
+                    lesion_inds,
+                    lesion_scale,
+                    lesion_tag,
                 )
                 for model_path in model_list
             ]
         else:
-            raise ValueError(f"Unknown mode: {mode}. Choose 'balance_stims' or 'balance_match'.")
+            raise ValueError(f"Unknown mode: {mode}. Choose 'balance_stims', 'balance_match', or 'precomputed'.")
 
         for i, future in enumerate(as_completed(futures), start=1):
             try:
@@ -650,6 +807,7 @@ def _select_model_paths(
     model_dir: str,
     pattern: str,
     include_models: Sequence[str] | None = None,
+    delay: int = 200,
 ) -> List[str]:
     all_paths = find_files(model_dir, pattern)
     if include_models is None:
@@ -662,6 +820,29 @@ def _select_model_paths(
     if missing:
         print(f"Warning: {len(missing)} requested model(s) not found: {missing}")
     return selected
+
+
+def _filter_models_by_delay(
+    model_paths: List[str],
+    model_dir: str,
+    delay: int,
+    mode: str,
+) -> List[str]:
+    """Return only model paths that have generated data files for the given delay and mode."""
+    filtered = []
+    for model_path in model_paths:
+        model_name = os.path.basename(model_path)
+        output_dir = os.path.join(model_dir, model_name[:-4])
+        candidates = [
+            os.path.join(output_dir, f"bhv_dict_delay{delay}_{mode}.pkl"),
+            os.path.join(output_dir, f"bhv_dict_delay{delay}.pkl"),
+        ]
+        if any(os.path.exists(p) for p in candidates):
+            filtered.append(model_path)
+    n_dropped = len(model_paths) - len(filtered)
+    if n_dropped:
+        print(f"Filtered out {n_dropped} model(s) with no data for delay={delay}, mode={mode}")
+    return filtered
 
 
 def _load_behavior_artifacts(
@@ -705,6 +886,7 @@ def compute_delay200_perfs(
     pattern: str = "*N_1000*.mat",
     mode: str = "balance_stims",
     include_models: Sequence[str] | None = None,
+    delay: int = 200,
 ) -> np.ndarray:
     model_paths = _select_model_paths(model_dir, pattern, include_models)
     loads = [1, 2, 3]
@@ -715,7 +897,7 @@ def compute_delay200_perfs(
         output_dir = os.path.join(model_dir, model_name[:-4])
 
         try:
-            settings, bhv_dict = _load_behavior_artifacts(output_dir, mode=mode, default_delay=200)
+            settings, bhv_dict = _load_behavior_artifacts(output_dir, mode=mode, default_delay=delay)
         except FileNotFoundError:
             continue
 
@@ -736,8 +918,9 @@ def plot_quick_behavior(
     pattern: str = "*N_1000*.mat",
     mode: str = "balance_stims",
     include_models: Sequence[str] | None = None,
+    delay: int = 200,
 ) -> None:
-    model_paths = _select_model_paths(model_dir, pattern, include_models)
+    model_paths = _select_model_paths(model_dir, pattern, include_models, delay=delay)
     if not model_paths:
         print("No models matched selection.")
         return
@@ -756,7 +939,7 @@ def plot_quick_behavior(
             output_dir = os.path.join(model_dir, model_name[:-4])
 
             try:
-                settings, bhv_dict = _load_behavior_artifacts(output_dir, mode=mode, default_delay=200)
+                settings, bhv_dict = _load_behavior_artifacts(output_dir, mode=mode, default_delay=delay)
             except Exception:
                 print(f"No data for {model_name}, skipping")
                 continue
@@ -794,6 +977,7 @@ def plot_behavior_boxplots(
     pattern: str = "*N_1000*.mat",
     mode: str = "balance_stims",
     include_models: Sequence[str] | None = None,
+    delay: int = 200,
 ) -> None:
     model_paths = _select_model_paths(model_dir, pattern, include_models)
     if not model_paths:
@@ -806,7 +990,7 @@ def plot_behavior_boxplots(
         perfs.append(model_data["eval_perfs"][0])
 
     perfs = np.array(perfs)
-    test_perfs = compute_delay200_perfs(model_dir, pattern, mode=mode, include_models=include_models)
+    test_perfs = compute_delay200_perfs(model_dir, pattern, mode=mode, include_models=include_models, delay=delay)
     if test_perfs.size == 0:
         print("No test performance files found for selected mode/models.")
         return
@@ -819,7 +1003,7 @@ def plot_behavior_boxplots(
     axs = axs.flatten()
 
     for i, load in enumerate(loads):
-        axs[i].boxplot([perfs[:, i], test_perfs[:, i]], labels=["Delay=50", "Delay=200"])
+        axs[i].boxplot([perfs[:, i], test_perfs[:, i]], labels=["Delay=50", f"Delay={delay}"])
         axs[i].set_title(f"Load {load}")
         axs[i].set_ylabel("Performance")
 
@@ -827,6 +1011,7 @@ def plot_behavior_boxplots(
         _ = stat
         axs[i].text(0.5, 0.95, f"p={p:.3f}", transform=axs[i].transAxes, ha="center", va="top")
 
+        axs[i].axhline(0.5, color="red", linestyle="--", alpha=0.5)
         for j in range(perfs.shape[0]):
             axs[i].plot([1, 2], [perfs[j, i], test_perfs[j, i]], color="gray", alpha=0.3)
 
@@ -836,17 +1021,21 @@ def plot_behavior_boxplots(
     stat, p = kruskal(perfs[:, 0], perfs[:, 1], perfs[:, 2])
     _ = stat
     axs[3].text(0.5, 0.95, f"p={p:.3f}", transform=axs[3].transAxes, ha="center", va="top")
+    axs[3].axhline(0.5, color="red", linestyle="--", alpha=0.5)
     for j in range(perfs.shape[0]):
         axs[3].plot([1, 2, 3], [perfs[j, 0], perfs[j, 1], perfs[j, 2]], color="gray", alpha=0.3)
 
     axs[4].boxplot([test_perfs[:, 0], test_perfs[:, 1], test_perfs[:, 2]], labels=["Load 1", "Load 2", "Load 3"])
-    axs[4].set_title("Test (delay=200) Performance by Load")
+    axs[4].set_title(f"Test (delay={delay}) Performance by Load")
     axs[4].set_ylabel("Performance")
     stat, p = kruskal(test_perfs[:, 0], test_perfs[:, 1], test_perfs[:, 2])
     _ = stat
     axs[4].text(0.5, 0.95, f"p={p:.3f}", transform=axs[4].transAxes, ha="center", va="top")
     for j in range(test_perfs.shape[0]):
         axs[4].plot([1, 2, 3], [test_perfs[j, 0], test_perfs[j, 1], test_perfs[j, 2]], color="gray", alpha=0.3)
+    axs[4].axhline(0.5, color="red", linestyle="--", alpha=0.5)
+    axs[4].axhline(0.7, color="green", linestyle="--", alpha=0.5)
+    axs[4].axhline(0.6, color="yellow", linestyle="--", alpha=0.5)
 
     plt.tight_layout()
     plt.show()
@@ -858,32 +1047,37 @@ def move_low_perf_models(
     pattern: str = "*N_1000*.mat",
     mode: str = "balance_stims",
     actually_move: bool = False,
+    delay: int = 200,
 ) -> None:
     model_names = find_files(model_dir, pattern)
     new_dir = os.path.join(model_dir, "low_perf")
     os.makedirs(new_dir, exist_ok=True)
-    loads = [1, 3]
+    loads = [1, 2, 3]
 
     low_perf_models = []
     for model_path in model_names:
         model_name = os.path.basename(model_path)
         output_dir = os.path.join(model_dir, model_name[:-4])
 
-        with open(os.path.join(output_dir, f"settings_dict_delay200_{mode}.pkl"), "rb") as f:
-            settings = pk.load(f)
-        with open(os.path.join(output_dir, f"bhv_dict_delay{settings['delay']}_{mode}.pkl"), "rb") as f:
-            bhv_dict = pk.load(f)
+        try:
+            with open(os.path.join(output_dir, f"settings_dict_delay{delay}_{mode}.pkl"), "rb") as f:
+                settings = pk.load(f)
+            with open(os.path.join(output_dir, f"bhv_dict_delay{delay}_{mode}.pkl"), "rb") as f:
+                bhv_dict = pk.load(f)
+        except Exception:
+            print(f"No data for {model_name}, skipping")
+            continue
 
         trial_type = np.array(bhv_dict["trial_type"])
         perfs = np.array(bhv_dict["perf"])
 
-        load_perfs = np.zeros(2, dtype=np.float32)
+        load_perfs = np.zeros(3, dtype=np.float32)
         for n, load in enumerate(loads):
             this_load_idx = np.where(trial_type[:, 0] == load)[0]
             load_perfs[n] = np.mean(perfs[this_load_idx])
 
         if np.any(load_perfs < threshold):
-            print(f"Moving {model_name} with delay=200 perf {load_perfs} to low_perf folder")
+            print(f"Moving {model_name} with delay={delay} perf {load_perfs} to low_perf folder")
             low_perf_models.append(model_name)
             if actually_move:
                 # Move the model .mat file
@@ -969,11 +1163,13 @@ def build_argparser() -> argparse.ArgumentParser:
     subparsers.add_parser("print-model-perf", parents=[common])
     plot_quick = subparsers.add_parser("plot-quick-behavior", parents=[common])
     plot_quick.add_argument("--mode", choices=["balance_stims", "balance_match"], default="balance_stims")
+    plot_quick.add_argument("--delay", type=int, default=200, help="Delay duration used in file names (e.g. 150 loads neural_dict_delay150_*.pkl)")
     plot_quick.add_argument("--models", nargs="+", default=None,
                             help="Optional model names (with or without .mat) to include")
 
     plot_box = subparsers.add_parser("plot-boxplots", parents=[common])
     plot_box.add_argument("--mode", choices=["balance_stims", "balance_match"], default="balance_stims")
+    plot_box.add_argument("--delay", type=int, default=200, help="Delay duration used in file names")
     plot_box.add_argument("--models", nargs="+", default=None,
                           help="Optional model names (with or without .mat) to include")
     subparsers.add_parser("rename-files", parents=[common], help="Rename old saved files to include _balance_stims suffix")
@@ -983,19 +1179,51 @@ def build_argparser() -> argparse.ArgumentParser:
     move_low.add_argument("--actually-move", action="store_true", help="Perform file moves")
 
     gen = subparsers.add_parser("generate-data", parents=[common])
-    gen.add_argument("--mode", choices=["balance_stims", "balance_match"], default="balance_stims",
-                     help="Trial generation mode: balance_stims (all stimulus combos) or balance_match (balanced match/mismatch per load)")
+    gen.add_argument("--mode", choices=["balance_stims", "balance_match", "precomputed"], default="balance_stims",
+                     help="Trial generation mode: balance_stims (all stimulus combos), balance_match (balanced match/mismatch per load), or precomputed (supply u_all via notebook only)")
     gen.add_argument("--n-repetitions", type=int, default=3,
                      help="Number of repetitions per stimulus combo (balance_stims mode only)")
     gen.add_argument("--n-trials", type=int, default=50,
                      help="Number of trials per load per match condition (balance_match mode only)")
-    gen.add_argument("--loads", type=int, nargs="+", default=[1, 3],
+    gen.add_argument("--loads", type=int, nargs="+", default=[1, 2, 3],
                      help="Load values to use (balance_match mode only)")
+    gen.add_argument("--delay", type=int, default=None,
+                     help="Delay duration in timesteps (overrides DEFAULT_SETTINGS; e.g. 150 → neural_dict_delay150_*.pkl)")
     gen.add_argument("--eval-amp-threshold", type=float, default=0.7)
     gen.add_argument("--workers", type=int, default=os.cpu_count() or 1)
     gen.add_argument("--backend", choices=["numpy", "torch"], default="numpy")
     gen.add_argument("--device", type=str, default="cuda")
     gen.add_argument("--overwrite", action="store_true")
+    gen.add_argument("--models", nargs="+", default=None,
+                     help="Optional model names (with or without .mat) to run; runs all if omitted")
+    gen.add_argument(
+        "--lesion",
+        type=str,
+        default="",
+        choices=["", "ee", "ei", "ie", "ii", "custom"],
+        help="Lesion type. Use 'custom' with --lesion-inds-file to specify arbitrary indices.",
+    )
+    gen.add_argument(
+        "--lesion-inds-file",
+        type=str,
+        default=None,
+        help=(
+            "Path to a JSON file defining custom lesion index pairs (used when --lesion=custom). "
+            "Format: [[row_list_or_null, col_list_or_null], ...] — null means all rows/cols."
+        ),
+    )
+    gen.add_argument(
+        "--lesion-scale",
+        type=float,
+        default=0.5,
+        help="Multiplicative scale applied to lesioned weights (default 0.5; use 0.0 for full ablation).",
+    )
+    gen.add_argument(
+        "--lesion-tag",
+        type=str,
+        default="",
+        help="Custom string used in the output filename suffix (e.g. 'tuned_ee'). Defaults to the lesion type.",
+    )
 
     return parser
 
@@ -1011,6 +1239,19 @@ def main() -> None:
     elif args.command == "print-model-perf":
         print_model_performance(args.model_dir, args.pattern)
     elif args.command == "generate-data":
+        lesion_inds = None
+        if args.lesion == "custom" and args.lesion_inds_file:
+            import json
+            with open(args.lesion_inds_file) as f:
+                raw = json.load(f)
+            # JSON format: [[row_list_or_null, col_list_or_null], ...]
+            lesion_inds = [
+                (
+                    np.array(r, dtype=int) if r is not None else None,
+                    np.array(c, dtype=int) if c is not None else None,
+                )
+                for r, c in raw
+            ]
         generate_data(
             model_dir=args.model_dir,
             pattern=args.pattern,
@@ -1023,6 +1264,12 @@ def main() -> None:
             mode=args.mode,
             n_trials=args.n_trials,
             loads=args.loads,
+            delay=args.delay,
+            lesion=args.lesion,
+            lesion_inds=lesion_inds,
+            lesion_scale=args.lesion_scale,
+            lesion_tag=args.lesion_tag,
+            include_models=args.models,
         )
     elif args.command == "plot-quick-behavior":
         plot_quick_behavior(
@@ -1030,6 +1277,7 @@ def main() -> None:
             pattern=args.pattern,
             mode=args.mode,
             include_models=args.models,
+            delay=args.delay,
         )
     elif args.command == "plot-boxplots":
         plot_behavior_boxplots(
@@ -1037,6 +1285,7 @@ def main() -> None:
             pattern=args.pattern,
             mode=args.mode,
             include_models=args.models,
+            delay=args.delay,
         )
     elif args.command == "move-low-perf":
         move_low_perf_models(

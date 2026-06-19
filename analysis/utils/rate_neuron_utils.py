@@ -82,6 +82,114 @@ def calc_load_tuning(model_name, condn_phrase, condn_num, rates_data=None, other
     return tuning
 
 
+def calc_load_tuning_multiload(model_name, condn_phrase, condn_num, other_labels="balance_stims",
+                               rates_data=None, other_variables=None,
+                               use_prescreen=True, prescreen_alpha=0.20,
+                               kw_alpha=0.05, dunn_alpha=0.05,
+                               dunn_p_adjust='holm',
+                               show_progress=False,
+                               all_models_dir='/home/nuttidalab/Documents/renee/sternberg/multiload_1_2_3'):
+    """
+    Nonparametric load tuning for all neurons with 3 load conditions (1, 2, 3).
+
+    Each trial's mean FR is computed during its own load-specific delay window
+    (delay start = stim_on + stim_dur * load). Uses Kruskal-Wallis as omnibus
+    test, then Dunn's post-hoc pairwise tests (Holm correction by default).
+    A neuron is assigned the load with the highest mean delay-period FR if that
+    load differs significantly from all others.
+    """
+
+    if rates_data is None:
+        _, rates_data = ld.load_neural_rate_data(model_name, condn_phrase, condn_num,
+                                                 other_labels=other_labels,
+                                                 all_models_dir=all_models_dir, load_LFP=False)
+
+    if other_variables is not None:
+        trial_labels = other_variables.get('trial_labels', None)
+        trial_perfs = other_variables.get('trial_perfs', None)
+        trial_outputs = other_variables.get('trial_outputs', None)
+        if trial_labels is not None:
+            print("Loaded behavioral variables from other_variables")
+    else:
+        trial_labels = trial_perfs = trial_outputs = None
+
+    if trial_labels is None:
+        print('Loading behavioral data...')
+        trial_labels, trial_perfs, trial_outputs = ld.load_bhv_rate_data(model_name, condn_phrase, condn_num,
+                                                                          other_labels=other_labels,
+                                                                          all_models_dir=all_models_dir)
+
+    settings = ld.load_settings_rate_data(model_name, condn_phrase, condn_num,
+                                          other_labels=other_labels,
+                                          all_models_dir=all_models_dir)
+
+    load_labels = trial_labels[:, 0]
+    loads = np.unique(load_labels)  # [1, 2, 3]
+
+    n_trials, n_neurons, _ = rates_data.shape
+    trial_mean_frs = np.full((n_trials, n_neurons), np.nan)
+
+    for load in loads:
+        load = int(load)
+        delay_start = int(settings['stim_on'] + settings['stim_dur'] * load)
+        delay_stop = int(settings['stim_on'] + settings['stim_dur'] * load + settings['delay'])
+        load_idxs = np.where(load_labels == load)[0]
+        trial_mean_frs[load_idxs] = np.mean(rates_data[load_idxs, :, delay_start:delay_stop], axis=2)
+
+    load_groups = [trial_mean_frs[load_labels == load] for load in loads]
+
+    if len(load_groups) < 2:
+        return np.full(n_neurons, np.nan)
+
+    tuning = np.full(n_neurons, np.nan)
+
+    neuron_iter = range(n_neurons)
+    if show_progress:
+        try:
+            tqdm_module = __import__('tqdm.auto', fromlist=['tqdm'])
+            neuron_iter = tqdm_module.tqdm(neuron_iter, desc='Load tuning (nonparametric)', leave=False)
+        except Exception:
+            pass
+
+    for n_neuron in neuron_iter:
+        neuron_groups = [group[:, n_neuron] for group in load_groups]
+
+        if any(g.size == 0 or np.all(np.isnan(g)) for g in neuron_groups):
+            continue
+
+        neuron_groups = [g[~np.isnan(g)] for g in neuron_groups]
+        if any(g.size == 0 for g in neuron_groups):
+            continue
+
+        group_means = np.array([g.mean() for g in neuron_groups])
+        max_idx = int(np.argmax(group_means))
+
+        try:
+            kw_p = stats.kruskal(*neuron_groups).pvalue
+        except Exception:
+            continue
+
+        if np.isnan(kw_p):
+            continue
+
+        if use_prescreen and kw_p >= prescreen_alpha:
+            continue
+
+        if kw_p >= kw_alpha:
+            continue
+
+        dunn_pvals = _dunn_test_pval_matrix(neuron_groups, p_adjust=dunn_p_adjust)
+
+        max_vs_others = np.delete(dunn_pvals[max_idx, :], max_idx)
+        if max_vs_others.size == 0 or np.any(np.isnan(max_vs_others)):
+            continue
+
+        if np.all(max_vs_others < dunn_alpha):
+            tuning[n_neuron] = loads[max_idx]
+
+    return tuning
+
+
 def plot_load_tuning(tuning, tuning_options = [1, 3, np.nan], cell_idxs=None, exc_ind = None, ax=None, title=None):
     """
     Plot the stim1 tuning for a given model and condition
@@ -93,7 +201,7 @@ def plot_load_tuning(tuning, tuning_options = [1, 3, np.nan], cell_idxs=None, ex
     if cell_idxs is None:
         cell_idxs = np.arange(len(tuning))
 
-    x_labels = [tuning_options[0], tuning_options[1],'none']
+    x_labels = tuning_options[:-1] + ['none'] if np.isnan(tuning_options[-1]) else tuning_options
     x = np.arange(len(x_labels))
     n_tuned = np.zeros(len(x_labels))
     n_exc = np.zeros(len(x_labels))
@@ -565,7 +673,7 @@ def plot_stim1_tuning(tuning, tuning_options = [0, 1, 2, 3, np.nan], cell_idxs=N
 FIRING RATE FUNCTIONS
 '''
 
-def plot_neuron_rates(model_name, cell_id, condn_phrase, condn_num, rates_data = None, other_labels=[], cut_off = 50, 
+def plot_neuron_rates(model_name, cell_id, condn_phrase, condn_num, rates_data = None, other_labels=[], cut_off = 50, colors=None,
                       ax=None, title=None, all_models_dir='/home/nuttidalab/Documents/renee/sternberg/interleaved_0.5'):
     """
     Plot the firing rates of a neuron across trials.
@@ -592,7 +700,8 @@ def plot_neuron_rates(model_name, cell_id, condn_phrase, condn_num, rates_data =
     # get timing info
     settings = ld.load_settings_rate_data(model_name, condn_phrase, condn_num, all_models_dir=all_models_dir)
 
-    _, colors = get_trialtype_colors()
+    if colors is None:
+        _, colors = get_trialtype_colors()
     if ax is None:
         fig, ax = plt.subplots(figsize=(8, 4))
 
@@ -813,7 +922,7 @@ def plot_rates(rates_data, idxs_one, idxs_two, settings, trial_labels,
 
 
 def plot_trialtype_meanrates(model_name, condn_phrase, condn_num, rates_data = None, sort=None,
-                     cut_off = 25, hlines = [], normalize=False, 
+                     cut_off = 25, hlines = [], normalize=False, colors=None,
                      all_models_dir = '/home/nuttidalab/Documents/renee/sternberg/interleaved_0.5', 
                      vmin=0, vmax=1, cmap='Greys'):
     """
@@ -841,7 +950,8 @@ def plot_trialtype_meanrates(model_name, condn_phrase, condn_num, rates_data = N
     # get timing info
     settings = ld.load_settings_rate_data(model_name, condn_phrase, condn_num, all_models_dir=all_models_dir)
 
-    _, colors = get_trialtype_colors()
+    if colors is None:
+        _, colors = get_trialtype_colors()
     # if ax is None:
     #     fig, ax = plt.subplots(figsize=(8, 4))
 
@@ -867,7 +977,7 @@ def plot_trialtype_meanrates(model_name, condn_phrase, condn_num, rates_data = N
         cmap='Greys'
            
     
-    fig, axs = plt.subplots(2,2, figsize=(16, 8))
+    fig, axs = plt.subplots(3,2, figsize=(16, 8))
     axs = axs.flatten()
     for i, trial_type in enumerate(trial_types):
         axs[i].imshow(cell_meanfrs[sort, i, :], aspect='auto', cmap=cmap, vmin=vmin, vmax=vmax)
@@ -1145,3 +1255,6 @@ def get_fixation_baseline_times(times_dict):
     """
     baseline = [int(times_dict['stim1_on']/2), int(times_dict['stim1_on'])]
     return baseline
+
+
+# colors = ['#6E439A','#4B2644','#2B1644','#236975','#239975','#49BEA3']
