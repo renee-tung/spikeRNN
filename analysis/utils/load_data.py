@@ -512,7 +512,10 @@ def get_weights(model_name, condn_phrase, condn_num, remove_lowfr=False,
     
     w = mat_data['w']
     m = mat_data['m']
-    scaling_factor = mat_data['opt_scaling_factor'][0][0]
+    try:
+        scaling_factor = mat_data['opt_scaling_factor'][0][0]
+    except KeyError:
+        scaling_factor = 1.0  # Default value if 'opt_scaling_factor' is not present
     final_w = np.matmul(w, m) / scaling_factor
     taus_gaus = mat_data['taus_gaus']
     taus = mat_data['taus'].flatten()

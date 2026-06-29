@@ -114,7 +114,7 @@ def calc_load_tuning_multiload(model_name, condn_phrase, condn_num, other_labels
         trial_labels = trial_perfs = trial_outputs = None
 
     if trial_labels is None:
-        print('Loading behavioral data...')
+        # print('Loading behavioral data...')
         trial_labels, trial_perfs, trial_outputs = ld.load_bhv_rate_data(model_name, condn_phrase, condn_num,
                                                                           other_labels=other_labels,
                                                                           all_models_dir=all_models_dir)

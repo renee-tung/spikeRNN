@@ -411,7 +411,7 @@ def _run_single_model_worker_balance_match(
         local_settings = settings.copy()
         local_settings["load"] = load
         resp_onset = int(
-            local_settings["stim_on"] + load * local_settings["stim_dur"] + local_settings["delay"] + 10
+            local_settings["stim_on"] + load * local_settings["stim_dur"] + local_settings["delay"] + local_settings["stim_dur"] + 10
         )
 
         # Generate n_trials for match=0 and n_trials for match=1 (balanced)
@@ -488,7 +488,7 @@ def _run_single_model_worker(
         local_settings = settings.copy()
         local_settings["load"] = load
         u, label, stim_ids_used = generate_input_stim_sternberg_stims(local_settings, stim_ids, max_load=max_load)
-        resp_onset = int(local_settings["stim_on"] + load * local_settings["stim_dur"] + local_settings["delay"] + 10)
+        resp_onset = int(local_settings["stim_on"] + load * local_settings["stim_dur"] + local_settings["delay"] + local_settings["stim_dur"] + 10)
         trial_specs.append((u, label, load, np.array(stim_ids_used, dtype=np.float32), resp_onset))
 
     n_total = len(trial_specs) * n_repetitions
@@ -593,7 +593,7 @@ def _run_single_model_worker_precomputed(
     def _compute_perf(o, trial_type_row):
         load = int(trial_type_row[0])
         label = int(trial_type_row[1])
-        resp_onset = int(settings["stim_on"] + load * settings["stim_dur"] + settings["delay"] + 10)
+        resp_onset = int(settings["stim_on"] + load * settings["stim_dur"] + settings["delay"] + settings["stim_dur"] + 10)
         if label == 1:
             return int(np.max(o[resp_onset:]) > eval_amp_threshold)
         else:
