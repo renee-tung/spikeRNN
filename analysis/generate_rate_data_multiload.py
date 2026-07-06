@@ -369,16 +369,18 @@ def _run_single_model_worker_balance_match(
     lesion_inds: Optional[List[Tuple[Optional[np.ndarray], Optional[np.ndarray]]]] = None,
     lesion_scale: float = 0.5,
     lesion_tag: str = "",
+    output_tag: str = "",
 ) -> str:
     """Worker for random trial generation with balanced match/mismatch per load."""
     model_name = os.path.basename(model_path)
     output_dir = os.path.join(model_dir, model_name[:-4])
     os.makedirs(output_dir, exist_ok=True)
 
+    output_tag_suffix = f"_{output_tag}" if output_tag else ""
     lesion_suffix = f"_lesion_{lesion_tag or lesion}" if lesion else ""
-    neural_path = os.path.join(output_dir, f"neural_dict_delay{settings['delay']}_balance_match{lesion_suffix}.pkl")
-    bhv_path = os.path.join(output_dir, f"bhv_dict_delay{settings['delay']}_balance_match{lesion_suffix}.pkl")
-    settings_path = os.path.join(output_dir, f"settings_dict_delay{settings['delay']}_balance_match{lesion_suffix}.pkl")
+    neural_path = os.path.join(output_dir, f"neural_dict_delay{settings['delay']}_balance_match{output_tag_suffix}{lesion_suffix}.pkl")
+    bhv_path = os.path.join(output_dir, f"bhv_dict_delay{settings['delay']}_balance_match{output_tag_suffix}{lesion_suffix}.pkl")
+    settings_path = os.path.join(output_dir, f"settings_dict_delay{settings['delay']}_balance_match{output_tag_suffix}{lesion_suffix}.pkl")
 
     if (not overwrite) and os.path.exists(neural_path) and os.path.exists(bhv_path):
         return f"skipping {model_name}, already saved"
@@ -448,7 +450,7 @@ def _run_single_model_worker_balance_match(
     with open(settings_path, "wb") as f:
         pk.dump(settings.copy(), f)
 
-    return f"saved model outputs to {output_dir}"
+    return f"saved model outputs to {output_dir}\nneural filename: {neural_path}"
 
 
 def _run_single_model_worker(
@@ -465,15 +467,17 @@ def _run_single_model_worker(
     lesion_inds: Optional[List[Tuple[Optional[np.ndarray], Optional[np.ndarray]]]] = None,
     lesion_scale: float = 0.5,
     lesion_tag: str = "",
+    output_tag: str = "",
 ) -> str:
     model_name = os.path.basename(model_path)
     output_dir = os.path.join(model_dir, model_name[:-4])
     os.makedirs(output_dir, exist_ok=True)
 
+    output_tag_suffix = f"_{output_tag}" if output_tag else ""
     lesion_suffix = f"_lesion_{lesion_tag or lesion}" if lesion else ""
-    neural_path = os.path.join(output_dir, f"neural_dict_delay{settings['delay']}_balance_stims{lesion_suffix}.pkl")
-    bhv_path = os.path.join(output_dir, f"bhv_dict_delay{settings['delay']}_balance_stims{lesion_suffix}.pkl")
-    settings_path = os.path.join(output_dir, f"settings_dict_delay{settings['delay']}_balance_stims{lesion_suffix}.pkl")
+    neural_path = os.path.join(output_dir, f"neural_dict_delay{settings['delay']}_balance_stims{output_tag_suffix}{lesion_suffix}.pkl")
+    bhv_path = os.path.join(output_dir, f"bhv_dict_delay{settings['delay']}_balance_stims{output_tag_suffix}{lesion_suffix}.pkl")
+    settings_path = os.path.join(output_dir, f"settings_dict_delay{settings['delay']}_balance_stims{output_tag_suffix}{lesion_suffix}.pkl")
 
     if (not overwrite) and os.path.exists(neural_path) and os.path.exists(bhv_path):
         return f"skipping {model_name}, already saved"
@@ -538,7 +542,7 @@ def _run_single_model_worker(
     with open(settings_path, "wb") as f:
         pk.dump(settings.copy(), f)
 
-    return f"saved model outputs to {output_dir}"
+    return f"saved model outputs to {output_dir}\nneural filename: {neural_path}"
 
 
 def _run_single_model_worker_precomputed(
@@ -555,6 +559,7 @@ def _run_single_model_worker_precomputed(
     lesion_inds: Optional[List[Tuple[Optional[np.ndarray], Optional[np.ndarray]]]] = None,
     lesion_scale: float = 0.5,
     lesion_tag: str = "",
+    output_tag: str = "",
 ) -> str:
     """Worker that evaluates pre-generated stimuli passed in as u_all.
 
@@ -567,10 +572,11 @@ def _run_single_model_worker_precomputed(
     output_dir = os.path.join(model_dir, model_name[:-4])
     os.makedirs(output_dir, exist_ok=True)
 
+    output_tag_suffix = f"_{output_tag}" if output_tag else ""
     lesion_suffix = f"_lesion_{lesion_tag or lesion}" if lesion else ""
-    neural_path = os.path.join(output_dir, f"neural_dict_delay{settings['delay']}_precomputed{lesion_suffix}.pkl")
-    bhv_path = os.path.join(output_dir, f"bhv_dict_delay{settings['delay']}_precomputed{lesion_suffix}.pkl")
-    settings_path = os.path.join(output_dir, f"settings_dict_delay{settings['delay']}_precomputed{lesion_suffix}.pkl")
+    neural_path = os.path.join(output_dir, f"neural_dict_delay{settings['delay']}_precomputed{output_tag_suffix}{lesion_suffix}.pkl")
+    bhv_path = os.path.join(output_dir, f"bhv_dict_delay{settings['delay']}_precomputed{output_tag_suffix}{lesion_suffix}.pkl")
+    settings_path = os.path.join(output_dir, f"settings_dict_delay{settings['delay']}_precomputed{output_tag_suffix}{lesion_suffix}.pkl")
 
     if (not overwrite) and os.path.exists(neural_path) and os.path.exists(bhv_path):
         return f"skipping {model_name}, already saved"
@@ -625,7 +631,7 @@ def _run_single_model_worker_precomputed(
     with open(settings_path, "wb") as f:
         pk.dump(settings.copy(), f)
 
-    return f"saved model outputs to {output_dir}"
+    return f"saved model outputs to {output_dir}\nneural filename: {neural_path}"
 
 
 def list_models(model_dir: str, pattern: str = "*N_1000*.mat") -> List[str]:
@@ -677,6 +683,7 @@ def generate_data(
     lesion_inds: Optional[List[Tuple[Optional[np.ndarray], Optional[np.ndarray]]]] = None,
     lesion_scale: float = 0.5,
     lesion_tag: str = "",
+    output_tag: str = "",
     include_models: Optional[Sequence[str]] = None,
     u_all: Optional[np.ndarray] = None,
     trial_type_all: Optional[np.ndarray] = None,
@@ -740,6 +747,7 @@ def generate_data(
                     lesion_inds,
                     lesion_scale,
                     lesion_tag,
+                    output_tag,
                 )
                 for model_path in model_list
             ]
@@ -760,6 +768,7 @@ def generate_data(
                     lesion_inds,
                     lesion_scale,
                     lesion_tag,
+                    output_tag,
                 )
                 for model_path in model_list
             ]
@@ -782,6 +791,7 @@ def generate_data(
                     lesion_inds,
                     lesion_scale,
                     lesion_tag,
+                    output_tag,
                 )
                 for model_path in model_list
             ]
@@ -1224,6 +1234,12 @@ def build_argparser() -> argparse.ArgumentParser:
         default="",
         help="Custom string used in the output filename suffix (e.g. 'tuned_ee'). Defaults to the lesion type.",
     )
+    gen.add_argument(
+        "--output-tag",
+        type=str,
+        default="",
+        help="Extra label inserted into the output filename after the mode (e.g. 'match_stims' → neural_dict_delay150_precomputed_match_stims.pkl).",
+    )
 
     return parser
 
@@ -1269,6 +1285,7 @@ def main() -> None:
             lesion_inds=lesion_inds,
             lesion_scale=args.lesion_scale,
             lesion_tag=args.lesion_tag,
+            output_tag=args.output_tag,
             include_models=args.models,
         )
     elif args.command == "plot-quick-behavior":
